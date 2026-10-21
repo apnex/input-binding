@@ -116,14 +116,22 @@ export interface Overlap<Fact = unknown, Context = unknown> {
 	readonly ids: readonly string[];
 }
 
+/**
+ * What traceInput and matchInput take after the fact: the context, then an optional guard state. The
+ * context is optional when undefined is assignable to the table's context type -- as it is for the default,
+ * unknown -- since IB2 rule 3 makes an omitted context the same as one given as undefined; otherwise it
+ * must be given.
+ */
+export type ContextAndGuards<Context> = undefined extends Context ? [context?: Context, guards?: GuardState | undefined] : [context: Context, guards?: GuardState | undefined];
+
 /** The rows of several tenants, composed once; it holds no state, and any number of callers may share one (IB4). */
 export interface BindingTable<Fact = unknown, Context = unknown, Row extends BindingRow<Fact, Context> = BindingRow<Fact, Context>> {
 	readonly rows: readonly BindingEntry<Row>[];
 	readonly guards: readonly BindingGuard[];
 	readonly claim: BindingClaim | null;
 	readonly opens: BindingOpens | null;
-	traceInput(fact: Fact, context: Context, guards?: GuardState): readonly TraceRecord[];
-	matchInput(fact: Fact, context: Context, guards?: GuardState): MatchAnswer<Row>;
+	traceInput(fact: Fact, ...contextAndGuards: ContextAndGuards<Context>): readonly TraceRecord[];
+	matchInput(fact: Fact, ...contextAndGuards: ContextAndGuards<Context>): MatchAnswer<Row>;
 	findOverlaps(facts: readonly Fact[], contexts: readonly Context[], guardStates: readonly GuardState[]): readonly Overlap<Fact, Context>[];
 }
 

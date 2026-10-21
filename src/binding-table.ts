@@ -10,7 +10,7 @@
  */
 import { malformed, readArrayArgument, readGuardState } from "./argument-reading.js";
 import { checkBindingDeclaration, type CheckedRow } from "./binding-declaration.js";
-import type { BindingEntry, BindingGuard, BindingRow, BindingTable, BindingTableDeclaration, ComposeBindingTableResult, GuardState, MatchAnswer, Overlap, TraceRecord } from "./types.js";
+import type { BindingEntry, BindingGuard, BindingRow, BindingTable, BindingTableDeclaration, ComposeBindingTableResult, ContextAndGuards, GuardState, MatchAnswer, Overlap, TraceRecord } from "./types.js";
 
 /** Each row's standing for one input: refused by a guard's flag, or `on`'s and `when`'s answers (IB6's three passes). */
 interface Standing {
@@ -57,6 +57,12 @@ export function composeBindingTable<Fact = unknown, Context = unknown, Row exten
 	/** The guard state given to traceInput or matchInput, if any: omitted and undefined are the same, all states false. */
 	const optionalGuardState = (fn: string, given: unknown): readonly boolean[] => (given === undefined ? guards.map(() => false) : stateValues(readGuardState(fn, given, declaredStates, "the guard state")));
 
+	/** The context and the guard state given after the fact, each undefined when omitted, read by index from binding's own array. */
+	const contextAndGuardsOf = (given: ContextAndGuards<Context>): { readonly context: unknown; readonly guardState: unknown } => {
+		const list = given as readonly unknown[];
+		return { context: list.length > 0 ? list[0] : undefined, guardState: list.length > 1 ? list[1] : undefined };
+	};
+
 	/** IB6's three passes: guards, then every admitted row's `on`, then every bound row's `when`. */
 	function standingOf(fact: unknown, context: unknown, values: readonly boolean[]): Standing {
 		const refusedBy = held.map((r) => {
@@ -89,7 +95,8 @@ export function composeBindingTable<Fact = unknown, Context = unknown, Row exten
 		claim,
 		opens,
 		/** IB6: for every row, in table order, how far it matched one input. */
-		traceInput(fact: Fact, context: Context, guardState?: GuardState): readonly TraceRecord[] {
+		traceInput(fact: Fact, ...contextAndGuards: ContextAndGuards<Context>): readonly TraceRecord[] {
+			const { context, guardState } = contextAndGuardsOf(contextAndGuards);
 			const standing = standingOf(fact, context, optionalGuardState("traceInput", guardState));
 			return Object.freeze(
 				held.map((r, i) => {
@@ -100,7 +107,8 @@ export function composeBindingTable<Fact = unknown, Context = unknown, Row exten
 			);
 		},
 		/** IB7: the one row whose trace record is a hit, or none when none or several are, and whether the input is claimed. */
-		matchInput(fact: Fact, context: Context, guardState?: GuardState): MatchAnswer<Row> {
+		matchInput(fact: Fact, ...contextAndGuards: ContextAndGuards<Context>): MatchAnswer<Row> {
+			const { context, guardState } = contextAndGuardsOf(contextAndGuards);
 			const standing = standingOf(fact, context, optionalGuardState("matchInput", guardState));
 			const hits = hitsOf(standing);
 			const match = hits.length === 1 ? (rows[hits[0] as number] as BindingEntry<Row>) : null;

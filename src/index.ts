@@ -16,6 +16,7 @@ export type {
 	BindingTableDeclaration,
 	BindingTenant,
 	ComposeBindingTableResult,
+	ContextAndGuards,
 	DeclarationProblem,
 	DeclarationProblemCode,
 	GestureDeclaration,
