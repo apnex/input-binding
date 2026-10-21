@@ -58,4 +58,4 @@ Six of them come from the general family, where a subnormal coordinate or a diff
 These are the press points within the exact band the design's section 6.3 names as changed by its D7; the test holds the session to `exact` at each, and checks that every other answer that differs follows from a listed point.
 
 The file names no word of draw's vocabulary, which its test confirms with the vocabulary check's list, and none of draw's guard, state, claim or gesture names.\
-`Math.hypot` and its rounding are JavaScript's, measured in Node 24's V8 at generation; the test never calls it, so an engine that rounds differently still reads the same corpus.
+`Math.hypot` and its rounding are JavaScript's, measured at generation in the V8 of Node.js v24.12.0, which ran the generator; the test never calls it, so an engine that rounds differently still reads the same corpus.

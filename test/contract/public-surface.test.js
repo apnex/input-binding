@@ -11,7 +11,10 @@ import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import ts from "typescript";
+
 import { contractRows, exportMapProblems } from "../../tools/check-export-map.mjs";
+import { parseModule } from "../../tools/check-runtime.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
@@ -35,6 +38,29 @@ test("IB13: the package exports composeBindingTable and openGestureSession, and 
 	assert.deepEqual(Object.keys(await import("@apnex/input-binding")).sort(), ["composeBindingTable", "openGestureSession"]);
 	assert.deepEqual(pkg.exports, { ".": { types: "./dist/index.d.ts", default: "./dist/index.js" } });
 	await assert.rejects(import("@apnex/input-binding/dist/travel-beyond.js"), "no file is reachable by a subpath");
+});
+
+const CLOCKS_AND_CHANCE = ["Date", "performance", "setTimeout", "setInterval", "setImmediate", "clearTimeout", "clearInterval", "queueMicrotask", "requestAnimationFrame", "crypto", "fetch", "XMLHttpRequest", "WebSocket", "navigator", "location"];
+
+/** Every clock, timer, source of chance or network a built file names: an identifier that is no member's name, or Math.random. */
+function clocksAndChance(source) {
+	const file = parseModule(source);
+	const found = [];
+	const visit = (node) => {
+		if (ts.isIdentifier(node) && CLOCKS_AND_CHANCE.includes(node.text) && !(ts.isPropertyAccessExpression(node.parent) && node.parent.name === node)) found.push(node.text);
+		if (ts.isPropertyAccessExpression(node) && node.name.text === "random" && ts.isIdentifier(node.expression) && node.expression.text === "Math") found.push("Math.random");
+		ts.forEachChild(node, visit);
+	};
+	visit(file);
+	return found;
+}
+
+test("IB13: no built file reads a clock or randomness, holds a timer, or reaches a network", () => {
+	const dist = path.join(root, "dist");
+	const files = fs.readdirSync(dist).filter((f) => f.endsWith(".js"));
+	assert.ok(files.length >= 8);
+	for (const file of files) assert.deepEqual(clocksAndChance(fs.readFileSync(path.join(dist, file), "utf8")), [], file);
+	assert.deepEqual(clocksAndChance("const a = Date.now(); const b = Math.random(); setTimeout(f, 1); const c = performance.now(); const d = x.Date;"), ["Date", "Math.random", "setTimeout", "performance"], "the walk sees what it looks for");
 });
 
 test("the export map is section 7's: one path, two exports, seven capabilities, each { part: 'input-binding', serves }, nothing deferred", () => {

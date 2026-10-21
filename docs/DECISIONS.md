@@ -68,6 +68,8 @@ Where section 3 was silent or left a choice open, the build made these; each tha
 - The vocabulary lists are snap-grid's, both of them, unchanged; no word of either is needed, so no allowance is asked.
 - The tools, workflows, `tsconfig.json`, `.gitignore` and `LICENSE` are snap-grid's, renamed; the release refuses a version outside `0.x` under the design's D12, as snap-grid's under its D9.
 - `tools/measure-halves.mjs` measures the built size of each half, the shared modules counted apart.
+- Beyond the seven capability files the design's section 4 asks for, `test/contract/` holds `argument-reading.test.js` (IB1 and IB2 for the session's operations, I8, and I11's stopping points) and `returned-values-and-errors.test.js` (the Errors and What is returned paragraphs), as snap-grid's holds the latter; each constructor's reading order stays in its capability's file.
+- IB13's "reads no clock and no randomness, and holds no timer" is held by a test walking each built file's syntax tree for clocks, timers, `Math.random` and network names, beside the runtime check, which looks only for runtime globals and imports.
 
 **The built size of each half.**\
 Measured at build by `tools/measure-halves.mjs` over `dist/`, as the design's section 7 and D11 ask: one export path and no dynamic import load both halves wherever either is imported.\
