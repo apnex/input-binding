@@ -98,19 +98,27 @@ export function readArrayArgument(fn: string, value: unknown, label: string): re
 /**
  * A guard state (IB5): a plain object whose own string-named properties each name a state the table's
  * guards declare and hold a boolean as a data property. Read as IB2's table says: its prototype, its own
- * keys -- each checked to name a declared state -- then each property's descriptor in the order the keys
- * gave. Answers the states it holds; a state it omits is false.
+ * keys, then each key's descriptor in the order the keys gave, each judged as it is read. A key whose
+ * descriptor reads undefined -- which only a Proxy can give -- is absent, so it names no state, declared
+ * or not; a key that is present must name a declared state and hold a boolean. Answers the states it
+ * holds; a state it omits is false.
  */
 export function readGuardState(fn: string, value: unknown, declaredStates: ReadonlySet<string>, label: string): ReadonlyMap<string, boolean> {
 	const record = requirePlainObject(fn, value, label);
 	const keys = readOwnStringKeys(fn, record, label);
-	for (const key of keys) if (!declaredStates.has(key)) throw malformed(fn, `${label} names ${JSON.stringify(key)}, a state no guard of the table declares`);
 	const states = new Map<string, boolean>();
 	for (const key of keys) {
-		const property = readOwnData(fn, record, key, `${label}.${key}`);
-		if (!property.present) continue;
-		if (typeof property.value !== "boolean") throw malformed(fn, `${label}.${key} must be a boolean`);
-		states.set(key, property.value);
+		let descriptor: PropertyDescriptor | undefined;
+		try {
+			descriptor = Reflect.getOwnPropertyDescriptor(record, key);
+		} catch (error) {
+			throw unreadable(fn, `${label}.${key}`, error);
+		}
+		if (descriptor === undefined) continue;
+		if (!declaredStates.has(key)) throw malformed(fn, `${label} names ${JSON.stringify(key)}, a state no guard of the table declares`);
+		if (!("value" in descriptor)) throw malformed(fn, `${label}.${key} must be an own data property, not an accessor`);
+		if (typeof descriptor.value !== "boolean") throw malformed(fn, `${label}.${key} must be a boolean`);
+		states.set(key, descriptor.value);
 	}
 	return states;
 }

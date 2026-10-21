@@ -6,6 +6,11 @@
  * form, in a fixed order, and the reading stops at the first that refuses it, so nothing beneath a value
  * refused at its pointer is read. No getter is ever called here: properties are read by descriptor.
  *
+ * A key Reflect.ownKeys lists is judged by what IB2's order reads of it. Where the order reads its
+ * descriptor -- a property a form names, an array's index -- a descriptor that reads undefined, which only
+ * a Proxy can give, makes the key absent. Where the order reads no descriptor -- a property a form does not
+ * name, a key of an array that is no index -- the key is known by its key alone (rule 8).
+ *
  * A plain object is a value whose prototype is Object.prototype or null. An array is a value for which
  * Array.isArray is true and whose prototype is Array.prototype, dense -- every index from 0 to
  * length - 1 an own data property -- and holding no own string-named property but those indices and
@@ -33,6 +38,11 @@ export interface JudgedArray {
 
 const OF_ANOTHER_KIND: Refusal = { refused: "kind" };
 const CANONICAL_INDEX = /^(?:0|[1-9][0-9]*)$/;
+/** The greatest array index plus one: an array index is a canonical integer string below 2^32 - 1, so "4294967295" is not one. */
+const INDEX_LIMIT = 2 ** 32 - 1;
+
+/** True when a key is an array index: a canonical non-negative integer string whose value is below 2^32 - 1. */
+const isArrayIndex = (key: string): boolean => CANONICAL_INDEX.test(key) && Number(key) < INDEX_LIMIT;
 
 /** The value a data property holds, or undefined for an accessor or an absent property. */
 export const dataValue = (property: OwnProperty | undefined): unknown => (property !== undefined && property.data ? property.value : undefined);
@@ -90,7 +100,7 @@ export function judgeArray(value: unknown): JudgedArray | Refusal {
 		const indices: number[] = [];
 		for (const key of Reflect.ownKeys(value)) {
 			if (typeof key !== "string" || key === "length") continue;
-			if (!CANONICAL_INDEX.test(key)) return OF_ANOTHER_KIND;
+			if (!isArrayIndex(key)) return OF_ANOTHER_KIND;
 			indices.push(Number(key));
 		}
 		const lengthDescriptor = Reflect.getOwnPropertyDescriptor(value, "length");

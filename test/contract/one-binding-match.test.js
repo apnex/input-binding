@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 
 import { composeBindingTable } from "@apnex/input-binding";
 import { randomTools, seededRandom } from "../support/doubles.js";
-import { recorded } from "../support/recording-proxy.js";
+import { phantom, recorded } from "../support/recording-proxy.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const FORMS = ["state-and-flag", "state-without-flag", "flag-without-state"];
@@ -92,11 +92,24 @@ test("IB2: matchInput and traceInput read the guard state -- its prototype, its 
 		assert.deepEqual(log, ["guards getPrototypeOf", "guards ownKeys", "guards getOwnPropertyDescriptor t", "guards getOwnPropertyDescriptor s"], fn);
 		const stopped = [];
 		refuses(fn, () => table[fn](null, null, recorded({ s: false, z: true, t: 1 }, "guards", stopped)), "an undeclared state");
-		assert.deepEqual(stopped, ["guards getPrototypeOf", "guards ownKeys"], "an undeclared state is refused at the keys, before any descriptor");
+		assert.deepEqual(stopped, ["guards getPrototypeOf", "guards ownKeys", "guards getOwnPropertyDescriptor s", "guards getOwnPropertyDescriptor z"], "an undeclared state is refused at its own descriptor, each key judged as it is read");
 		const atValue = [];
 		refuses(fn, () => table[fn](null, null, recorded({ s: 1, t: false }, "guards", atValue)), "a non-boolean");
 		assert.deepEqual(atValue, ["guards getPrototypeOf", "guards ownKeys", "guards getOwnPropertyDescriptor s"], "a non-boolean stops the reading at its descriptor");
 	}
+});
+
+test("IB2 and IB5: a phantom key of a guard state -- listed by its own keys, its descriptor undefined -- is absent, declared or not, and judged only after its descriptor is read", () => {
+	const { table } = composeBindingTable({ guards: [{ state: "s", flag: "f", default: false, refuses: "state-without-flag" }], tenants: [{ owner: "a", rows: [{ id: "x", on }] }] });
+	assert.equal(table.matchInput(null, null, phantom({}, "undeclared")).match.id, "x", "a phantom undeclared name names no state");
+	assert.equal(table.matchInput(null, null, phantom({}, "s")).match.id, "x", "a phantom declared name is absent, so its state is false");
+	assert.equal(table.matchInput(null, null, phantom({ s: true }, "undeclared")).match, null, "the present state still counts");
+	assert.equal(table.traceInput(null, null, phantom({}, "undeclared", "s"))[0].refusedBy, null);
+	refuses("matchInput", () => table.matchInput(null, null, phantom({ undeclared: false }, "s")), "a present undeclared name beside a phantom one");
+	const log = [];
+	table.matchInput(null, null, recorded(phantom({ s: false }, "undeclared"), "guards", log));
+	assert.deepEqual(log, ["guards getPrototypeOf", "guards ownKeys", "guards getOwnPropertyDescriptor s", "guards getOwnPropertyDescriptor undeclared"], "every key's descriptor is read, as IB2's table says");
+	assert.deepEqual(table.findOverlaps([0], [0], [phantom({}, "undeclared")]), []);
 });
 
 test("IB7: claimed with a hit, with an unmet when, with two hits, refused by a guard, unbound, and with no claim declared", () => {

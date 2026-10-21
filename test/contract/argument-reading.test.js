@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { composeBindingTable, openGestureSession } from "@apnex/input-binding";
-import { recorded } from "../support/recording-proxy.js";
+import { phantom, recorded } from "../support/recording-proxy.js";
 
 const GESTURES = [{ name: "move", engaged: true, button: null }, { name: "chain", engaged: true, button: 0 }];
 const open = () => openGestureSession({ threshold: 4, gestures: GESTURES }).session;
@@ -161,6 +161,26 @@ test("I11: for each operation, a malformed argument at each place in IB2's order
 	s.startGesture({ gesture: "move" });
 	assert.deepEqual(readsBeforeRefusal("becomeGesture", (log) => s.becomeGesture(recorded({ gesture: "move", row: "r" }, "args", log))), ["args getPrototypeOf", "args ownKeys"], "row given to becomeGesture is malformed at its keys");
 	assert.deepEqual(readsBeforeRefusal("becomeGesture", (log) => s.becomeGesture(recorded({ gesture: 1, from: point(log, 0) }, "args", log))), ["args getPrototypeOf", "args ownKeys", "args getOwnPropertyDescriptor gesture"]);
+});
+
+test("IB2: a phantom key -- listed by its own keys, its descriptor undefined -- is absent where IB2's order reads its descriptor, and known by its key alone where it reads none", () => {
+	const s = open();
+	malformed("pointerDown", () => s.pointerDown(phantom({ button: 0 }, "at")), "a phantom at");
+	malformed("pointerUp", () => s.pointerUp(phantom({}, "button")), "a phantom button");
+	s.pointerDown({ at: { x: 0, y: 0 }, button: 0 });
+	malformed("pressMatched", () => s.pressMatched(phantom({ opens: null }, "id")), "a phantom id");
+	malformed("pressMatched", () => s.pressMatched(phantom({ id: "x" }, "opens")), "a phantom opens");
+	malformed("startGesture", () => s.startGesture(phantom({}, "gesture")), "a phantom gesture");
+	const log = [];
+	malformed("startGesture", () => s.startGesture(recorded(phantom({ gesture: "move" }, "extra"), "args", log)), "a phantom key the form does not name");
+	assert.deepEqual(log, ["args getPrototypeOf", "args ownKeys"], "known by its key alone, as IB2's table reads no descriptor of it");
+	const started = s.startGesture(phantom({ gesture: "move" }, "row", "from"));
+	assert.equal(started.gesture.row, null, "a phantom row is absent");
+	assert.deepEqual(s.state.press.at, { x: 0, y: 0 }, "a phantom from is absent: no restart");
+	malformed("becomeGesture", () => s.becomeGesture(phantom({ gesture: "chain" }, "row")), "row is no key of becomeGesture's form, phantom or not");
+	const { table } = composeBindingTable({ tenants: [{ owner: "a", rows: [{ id: "x", on: () => true }] }] });
+	malformed("findOverlaps", () => table.findOverlaps(phantom([, 1], "0"), [], []), "a phantom index, a hole");
+	malformed("findOverlaps", () => table.findOverlaps([], phantom([], "extra"), []), "a phantom key that is no index");
 });
 
 test("IB2 rule 9: an operation that throws while reading changes nothing itself, and reads the session's state only after its arguments", () => {

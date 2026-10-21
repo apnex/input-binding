@@ -6,7 +6,7 @@ import { test } from "node:test";
 
 import { composeBindingTable } from "@apnex/input-binding";
 import { isFrozenToDepth } from "../support/frozen.js";
-import { recorded, revoked, trapping } from "../support/recording-proxy.js";
+import { phantom, recorded, revoked, trapping } from "../support/recording-proxy.js";
 
 const on = () => true;
 const row = (id, extra = {}) => ({ id, on, ...extra });
@@ -281,6 +281,40 @@ test("IB2 rule 8, reading 4: a guards array whose second element is an accessor 
 	declaration.guards = accessor([g0], 1, () => GUARD);
 	assert.deepEqual(problemsOf(declaration), [p("/guards", "invalid-value"), p("/tenants/0/rows/0/id", "invalid-value")]);
 	assert.equal(ran, false, "the first element's trap never ran");
+});
+
+test("IB2: a phantom key -- listed by its own keys, its descriptor undefined -- is absent where IB2's order reads its descriptor, and known by its key alone where it reads none", () => {
+	assert.deepEqual(problemsOf(phantom({}, "tenants")), [p("/tenants", "missing-property")], "a named property whose descriptor reads undefined is absent");
+	assert.deepEqual(problemsOf(phantom({ tenants: [] }, "zz")), [p("/zz", "unknown-property")], "a property the form does not name is known by its key alone");
+	assert.equal(composeBindingTable(phantom({ tenants: [] }, "guards", "claim", "opens")).ok, true, "optional properties whose descriptors read undefined are absent");
+	assert.deepEqual(problemsOf({ guards: [phantom({ state: "s", default: false, refuses: "state-and-flag" }, "flag")], tenants: [] }), [p("/guards/0/flag", "missing-property")]);
+	assert.deepEqual(problemsOf({ tenants: [{ owner: "a", rows: [phantom({ on }, "id")] }] }), [p("/tenants/0/rows/0/id", "missing-property")]);
+	const composed = composeBindingTable({ opens: { field: "g" }, guards: [{ state: "s", flag: "f", default: true, refuses: "state-and-flag" }], tenants: [{ owner: "a", rows: [phantom({ id: "x", on }, "when", "g", "f")] }] });
+	assert.equal(composed.ok, true, "a row's phantom when, flag and opens field are absent");
+	assert.equal(composed.table.rows[0].opens, null);
+	assert.equal(composed.table.traceInput(null, null, { s: true })[0].refusedBy, "f", "the absent flag takes its default");
+	const log = [];
+	problemsOf(recorded(phantom({ tenants: [] }, "zz", "tenantz"), "declaration", log));
+	assert.deepEqual(log, ["declaration getPrototypeOf", "declaration ownKeys", "declaration getOwnPropertyDescriptor tenants"], "no descriptor is read of a key the form does not name, phantom or not");
+	const holeLog = [];
+	assert.deepEqual(problemsOf({ tenants: recorded(phantom([, { owner: "a", rows: [] }], "0"), "tenants", holeLog) }), [p("/tenants", "invalid-value")], "a phantom index is a hole");
+	assert.deepEqual(holeLog, ["tenants getPrototypeOf", "tenants ownKeys", "tenants getOwnPropertyDescriptor length", "tenants getOwnPropertyDescriptor 0"], "judged absent at its own descriptor");
+	assert.deepEqual(problemsOf({ tenants: phantom([], "extra") }), [p("/tenants", "invalid-value")], "a phantom key that is no index is another own string-named property");
+});
+
+test("IB2 rule 4: an array's index is a canonical integer string below 2^32 - 1, so \"4294967295\" is another own property, refused at its own keys, before its length is read", () => {
+	for (const key of ["4294967295", "4294967296", "01", "1.0", "-1", "1e3"]) {
+		const list = [];
+		list[key] = 1;
+		const log = [];
+		assert.deepEqual(problemsOf({ tenants: recorded(list, "tenants", log) }), [p("/tenants", "invalid-value")], key);
+		assert.deepEqual(log, ["tenants getPrototypeOf", "tenants ownKeys"], `"${key}" is no index: refused before the length is read`);
+	}
+	const log = [];
+	const sparse = [];
+	sparse[4294967294] = 1;
+	assert.deepEqual(problemsOf({ tenants: recorded(sparse, "tenants", log) }), [p("/tenants", "invalid-value")]);
+	assert.deepEqual(log, ["tenants getPrototypeOf", "tenants ownKeys", "tenants getOwnPropertyDescriptor length"], "\"4294967294\" is the greatest index: the array is refused as sparse, after its length is read");
 });
 
 test("IB4: table order, entries { id, owner, opens, row } in that order, defaults for omitted flags, opens null without a declaration", () => {

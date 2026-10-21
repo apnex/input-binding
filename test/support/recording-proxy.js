@@ -37,3 +37,12 @@ export function revoked(target) {
 	revoke();
 	return proxy;
 }
+
+/** A Proxy whose own keys also list `phantoms`, keys whose descriptors read undefined: only a Proxy can make one. */
+export function phantom(target, ...phantoms) {
+	return new Proxy(target, {
+		ownKeys(t) {
+			return [...Reflect.ownKeys(t), ...phantoms];
+		},
+	});
+}
