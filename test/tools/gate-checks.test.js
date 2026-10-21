@@ -10,6 +10,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { candidateWords, findVocabulary, readVocabulary, splitWords } from "../../tools/check-vocabulary.mjs";
+import { findClockAndChance } from "../../tools/check-clock-and-chance.mjs";
 import { findRuntimeUses } from "../../tools/check-runtime.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -119,4 +120,53 @@ test("I14: the runtime check reads names in code only, never in comments or stri
 	assert.deepEqual(findRuntimeUses("const o = { self: 1 };\n").map((f) => f.finding), ["names self"], "an object-literal key is counted");
 	assert.deepEqual(findRuntimeUses("const m = import.meta.url; const n = a?.process;\n"), [], "import.meta is no dynamic import, and an optional member is a member");
 	assert.throws(() => findRuntimeUses('const s = "open;\n'), /could not parse/);
+});
+
+test("IB13: the clock and chance check passes over dist, and fails on a clock, a timer, chance or a network planted in a built file -- by bracket or by destructuring too", () => {
+	assert.equal(run("check-clock-and-chance.mjs").status, 0);
+	const bad = [
+		"export const a = Date.now();\n",
+		"export const b = Math.random();\n",
+		'export const c = Math["random"]();\n',
+		"const { random } = Math; export const d = random();\n",
+		"const { random: chance } = Math; export const e = chance();\n",
+		"let r; ({ random: r } = Math); export const f = r();\n",
+		"const m = Math; export const g = m.random();\n",
+		'export const h = Math["max"](1, 2);\n',
+		"export const i = [Math][0].random();\n",
+		"const { now } = Date; export const j = now();\n",
+		"const { now } = performance; export const k = now();\n",
+		"export const l = performance.now();\n",
+		"setTimeout(() => 0, 1);\n",
+		"queueMicrotask(() => 0);\n",
+		"export const n = crypto.getRandomValues(new Uint8Array(1));\n",
+		"export const o = new Date();\n",
+		"export const p = `${Math[`random`]()}`;\n",
+		"function q({ random } = Math) { return random(); }\nexport { q };\n",
+	];
+	for (const text of bad) {
+		assert.ok(findClockAndChance(text).length > 0, text);
+		const dir = scratch({ "a.js": text });
+		try {
+			const r = run("check-clock-and-chance.mjs", dir);
+			assert.equal(r.status, 1, text);
+			assert.match(r.stdout, /FAIL/);
+		} finally {
+			fs.rmSync(dir, { recursive: true, force: true });
+		}
+	}
+});
+
+test("IB13: the clock and chance check reads code only, and passes a direct member access by identifier", () => {
+	const clean = [
+		"export const a = Math.max(1, 2);\n",
+		"export const b = Math.min(...[3, 4]) + Math.floor(1.5) + Math.abs(-1);\n",
+		"// Date.now(), Math.random() and setTimeout in a comment\nexport const c = 'Math.random() and Date.now()';\n",
+		"export const d = options.Date + record.performance + x.random;\n",
+		"const { random } = other; export const e = random;\n",
+	];
+	for (const text of clean) assert.deepEqual(findClockAndChance(text), [], text);
+	assert.deepEqual(findClockAndChance('export const c = Math["random"]();\n').map((f) => f.finding), ["reads Math.random by brackets", "uses Math as a value, not as a direct member access by identifier"]);
+	assert.deepEqual(findClockAndChance("const { random } = Math; random();\n").map((f) => f.finding), ["destructures from Math", "uses Math as a value, not as a direct member access by identifier"]);
+	assert.throws(() => findClockAndChance('const s = "open;\n'), /could not parse/);
 });

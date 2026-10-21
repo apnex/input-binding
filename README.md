@@ -68,7 +68,7 @@ function onPointerDown(fact) {
 
 ## Test
 
-The gate builds, runs every test, the vocabulary, runtime and export-map checks, and mission-kit's style checks over the Markdown.
+The gate builds, runs every test, the vocabulary, runtime, clock and chance, and export-map checks, and mission-kit's style checks over the Markdown.
 
 Run the gate with a mission-kit checkout beside this repository, or with `MISSION_KIT` naming one:
 ```bash
