@@ -1,0 +1,12 @@
+{
+  "package": "@apnex/input-binding",
+  "paths": {
+    ".": {
+      "exports": {
+        "composeBindingTable": { "part": "input-binding", "serves": ["declared-binding-table", "one-binding-match", "binding-match-trace", "binding-overlaps"] },
+        "openGestureSession": { "part": "input-binding", "serves": ["declared-gesture-session", "press-travel", "live-gesture"] }
+      }
+    }
+  },
+  "deferred": {}
+}

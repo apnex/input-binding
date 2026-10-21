@@ -1,0 +1,47 @@
+/**
+ * Public surface of input-binding (CONTRACT.md, IB13): composeBindingTable and openGestureSession, and
+ * nothing else; there is no subpath.
+ */
+export { composeBindingTable } from "./binding-table.js";
+export { openGestureSession } from "./gesture-session.js";
+export type {
+	BecomeGestureArgs,
+	BecomeGestureOutcome,
+	BindingClaim,
+	BindingEntry,
+	BindingGuard,
+	BindingOpens,
+	BindingRow,
+	BindingTable,
+	BindingTableDeclaration,
+	BindingTenant,
+	ComposeBindingTableResult,
+	DeclarationProblem,
+	DeclarationProblemCode,
+	GestureDeclaration,
+	GestureOutcome,
+	GestureSession,
+	GestureSessionDeclaration,
+	GuardRefusal,
+	GuardState,
+	LiveGesture,
+	MatchAnswer,
+	OpenGestureSessionResult,
+	Overlap,
+	Phase,
+	PointerDownFact,
+	PointerDownOutcome,
+	PointerMoveFact,
+	PointerMoveOutcome,
+	PointerUpFact,
+	PointerUpOutcome,
+	Point,
+	Predicate,
+	Press,
+	PressMatch,
+	RefusedDeclaration,
+	SessionState,
+	StartGestureArgs,
+	TraceRecord,
+	Trigger,
+} from "./types.js";

@@ -1,0 +1,38 @@
+{
+  "name": "@apnex/input-binding",
+  "version": "0.1.0",
+  "description": "Decide what each input means in its context: the one declared row it matches, and the phase it makes due for the gesture in progress.",
+  "license": "MIT",
+  "author": "apnex",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/apnex/input-binding.git"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "VISION.md",
+    "CONTRACT.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "node tools/clean-dist.mjs && tsc -p .",
+    "prepack": "npm run build",
+    "test": "npm run build && node --test \"test/**/*.test.js\"",
+    "gate": "npm test && node tools/check-vocabulary.mjs && node tools/check-runtime.mjs && node tools/check-export-map.mjs && node tools/check-style.mjs",
+    "consumer": "node tools/consumer-test.mjs"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
+}
