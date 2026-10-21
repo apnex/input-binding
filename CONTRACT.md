@@ -336,7 +336,7 @@ Tested by: `test/contract/live-gesture.test.js` (I12).
 `@apnex/input-binding` exports `composeBindingTable` and `openGestureSession`, and nothing else; it has no subpath.\
 The package imports no other package and no module particular to one runtime, touches no DOM, reads no clock and no randomness, and holds no timer, so the same files run in Node.js and in a browser.\
 Its TypeScript declarations are generic in the fact and the context, so a consumer's predicates are typed against its own facts.\
-Tested by: `test/contract/public-surface.test.js`, the runtime check (`tools/check-runtime.mjs`) and the consumer test (`tools/consumer-test.mjs`).
+Tested by: `test/contract/public-surface.test.js`, `test/contract/public-types.test.js` (the declarations, compiled from `test/types/`), the runtime check (`tools/check-runtime.mjs`), the clock and chance check (`tools/check-clock-and-chance.mjs`) and the consumer test (`tools/consumer-test.mjs`).
 
 **Invariants.**\
 There is no conformance kit (the design's D9): nothing in input-binding is a port another party implements.\
@@ -369,7 +369,7 @@ This repository, `apnex/input-binding`, and its package `@apnex/input-binding`, 
 The package exports `composeBindingTable` and `openGestureSession` from its one path, as `export-map.json` records.\
 The code is TypeScript in `src/`, built to `dist/`, which only a release holds.\
 The tests are in `test/`: one file per capability in `test/contract/`, with `argument-reading.test.js`, `returned-values-and-errors.test.js`, `public-surface.test.js` and `contract-coverage.test.js` beside them, and the I13 corpus and its test in `test/corpus/`.\
-The gate, `npm run gate`, builds, runs the tests, the vocabulary, runtime and export-map checks in `tools/`, and mission-kit's style checks.\
+The gate, `npm run gate`, builds, runs the tests, the vocabulary, runtime, clock and chance, and export-map checks in `tools/`, and mission-kit's style checks.\
 The design of record is draw's `dev/design/components/INPUT-BINDING.md` (`apnex/drawv2`), whose section 3 this contract carries, whose section 4 holds the invariants above, and whose section 7 states where this repository differs from `snap-grid`'s, the first component's, whose repository, gate and release it otherwise follows.
 
 ---
