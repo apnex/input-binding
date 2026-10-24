@@ -219,6 +219,25 @@ test("IB2: resolvePress reads the fact as pointerDown does, then the handlers --
 	assert.deepEqual(log, ["handlers getPrototypeOf", "handlers ownKeys", "handlers getOwnPropertyDescriptor match"], "an absent cancelled's descriptor is not read");
 });
 
+/** The reads resolvePress made before it threw a TypeError beginning with its name. */
+function readsBeforeRefusal(call) {
+	const log = [];
+	malformed("resolvePress", () => call(log), "its argument");
+	return log;
+}
+
+test("I11: for resolvePress, a malformed argument at each place in IB2's order stops the reading there -- a malformed match before cancelled's descriptor is read", () => {
+	const s = open();
+	const handlers = (log, value) => recorded(value, "handlers", log);
+	assert.deepEqual(readsBeforeRefusal((log) => s.resolvePress(fact(), handlers(log, Object.create({ match: () => null })))), ["handlers getPrototypeOf"], "a prototype of another kind");
+	assert.deepEqual(readsBeforeRefusal((log) => s.resolvePress(fact(), handlers(log, { match: () => null, other: 1 }))), ["handlers getPrototypeOf", "handlers ownKeys"], "another key, refused at the own keys");
+	assert.deepEqual(readsBeforeRefusal((log) => s.resolvePress(fact(), handlers(log, { cancelled: () => 0 }))), ["handlers getPrototypeOf", "handlers ownKeys"], "no match, refused at the own keys");
+	assert.deepEqual(readsBeforeRefusal((log) => s.resolvePress(fact(), handlers(log, { match: 5, cancelled: () => 0 }))), ["handlers getPrototypeOf", "handlers ownKeys", "handlers getOwnPropertyDescriptor match"], "a malformed match stops the reading before cancelled's descriptor");
+	assert.deepEqual(readsBeforeRefusal((log) => s.resolvePress(fact(), handlers(log, Object.defineProperty({ cancelled: () => 0 }, "match", noGetter("match"))))), ["handlers getPrototypeOf", "handlers ownKeys", "handlers getOwnPropertyDescriptor match"], "an accessor match, no getter called");
+	assert.deepEqual(readsBeforeRefusal((log) => s.resolvePress(fact(), handlers(log, { match: () => assert.fail("match ran"), cancelled: 5 }))), ["handlers getPrototypeOf", "handlers ownKeys", "handlers getOwnPropertyDescriptor match", "handlers getOwnPropertyDescriptor cancelled"], "a malformed cancelled, match never called");
+	assert.deepEqual(readsBeforeRefusal((log) => s.resolvePress(fact(), { match: () => recorded({ id: "", opens: "move" }, "answer", log) })), ["answer getPrototypeOf", "answer getOwnPropertyDescriptor id"], "a malformed answer's id stops the reading before its opens");
+});
+
 test("IB15: malformed handlers -- not a plain object, another key, no match, match or cancelled no function, cancelled present as undefined, an accessor -- each throws before the state is read, the state untouched; a malformed fact before the handlers are read", () => {
 	const s = open();
 	s.pointerDown(fact(1, 1));
