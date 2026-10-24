@@ -24,7 +24,7 @@ Rows, contexts and the code each phase runs are supplied by whoever asks; `input
 **What it is not.**
 - Not a listener: it never touches a platform's events.
 - Not a hit tester or a renderer: what lies under a pointer, and what a gesture draws, are the application's.
-- Not an executor: a row's action and a phase's code are the application's, never run by binding; the one call binding makes back is to ask, while it resolves a press, for that press's match and to report the gesture it cancelled.
+- Not an executor: a row's action and a phase's code are the application's, never run by binding; beyond a row's predicates, binding calls back only while it resolves a press, to ask for that press's match and to report the gesture it cancelled.
 - Not a precedence engine: two rows that both match mean nothing.
 - Not a clock: time, when it is needed, arrives in the facts.
 - Not a network service: it never listens and never sends.
