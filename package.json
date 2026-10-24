@@ -1,6 +1,6 @@
 {
   "name": "@apnex/input-binding",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Decide what each input means in its context: the one declared row it matches, and the phase it makes due for the gesture in progress.",
   "license": "MIT",
   "author": "apnex",

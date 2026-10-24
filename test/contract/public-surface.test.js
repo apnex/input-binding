@@ -45,14 +45,14 @@ test("IB13: no built file reads a clock or randomness, holds a timer, or reaches
 	for (const file of files) assert.deepEqual(findClockAndChance(fs.readFileSync(path.join(dist, file), "utf8"), file), [], file);
 });
 
-test("the export map is section 7's: one path, two exports, seven capabilities, each { part: 'input-binding', serves }, nothing deferred", () => {
+test("the export map: one path, two exports, nine capabilities, each { part: 'input-binding', serves }, nothing deferred", () => {
 	assert.deepEqual(map, {
 		package: "@apnex/input-binding",
 		paths: {
 			".": {
 				exports: {
 					composeBindingTable: { part: "input-binding", serves: ["declared-binding-table", "one-binding-match", "binding-match-trace", "binding-overlaps"] },
-					openGestureSession: { part: "input-binding", serves: ["declared-gesture-session", "press-travel", "live-gesture"] },
+					openGestureSession: { part: "input-binding", serves: ["declared-gesture-session", "press-travel", "live-gesture", "held-keys", "press-resolution"] },
 				},
 			},
 		},
@@ -62,7 +62,7 @@ test("the export map is section 7's: one path, two exports, seven capabilities, 
 
 test("every contract row is served by an export or deferred with a ruling", () => {
 	const rows = contractRows(fs.readFileSync(path.join(root, "CONTRACT.md"), "utf8"));
-	assert.equal(rows.length, 7);
+	assert.equal(rows.length, 9);
 	const served = new Set(Object.values(map.paths).flatMap((e) => Object.values(e.exports ?? {})).flatMap((x) => x.serves));
 	for (const row of rows) assert.ok(served.has(row) || map.deferred[row], `${row} is neither served nor deferred`);
 	for (const [row, ruling] of Object.entries(map.deferred)) assert.match(ruling, /^D\d+$/, `${row} is deferred without a ruling`);
@@ -74,7 +74,7 @@ test("the package declares no dependency, and pins TypeScript", () => {
 	assert.equal(pkg.type, "module");
 	assert.equal(pkg.engines.node, ">=22");
 	assert.equal(pkg.name, "@apnex/input-binding");
-	assert.equal(pkg.version, "0.1.0");
+	assert.equal(pkg.version, "0.2.0");
 	assert.equal(pkg.repository.url, "git+https://github.com/apnex/input-binding.git");
 	assert.deepEqual(pkg.files.sort(), ["CONTRACT.md", "LICENSE", "README.md", "VISION.md", "dist"]);
 });

@@ -4,7 +4,7 @@
     ".": {
       "exports": {
         "composeBindingTable": { "part": "input-binding", "serves": ["declared-binding-table", "one-binding-match", "binding-match-trace", "binding-overlaps"] },
-        "openGestureSession": { "part": "input-binding", "serves": ["declared-gesture-session", "press-travel", "live-gesture"] }
+        "openGestureSession": { "part": "input-binding", "serves": ["declared-gesture-session", "press-travel", "live-gesture", "held-keys", "press-resolution"] }
       }
     }
   },
