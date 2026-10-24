@@ -7,9 +7,10 @@
 // serves the installed files with a small static server and loads every export in headless Chrome
 // through an import map made as draw makes its own: one entry per export, never a trailing-slash prefix,
 // each export's address carrying the package's version. In Node and in the page alike, the exercise
-// below composes a table, matches a press against it, and drives a session through the press, a move of
-// exactly the threshold, one a binary64 step beyond it and the release; the page writes what it saw
-// into itself, which Chrome's --dump-dom returns.
+// below composes a table, matches a press against it, and drives a session through the press, resolved in
+// one call, a move of exactly the threshold, another pointer's move, which changes nothing, one a binary64
+// step beyond it, and a chord's release naming another button, which commits; then a key held, a key with no
+// code and a focus lost; the page writes what it saw into itself, which Chrome's --dump-dom returns.
 //
 // Chrome is $CHROME, or google-chrome on PATH. It runs with a profile of its own in a scratch directory,
 // so it never touches another Chrome on the machine. Nothing here needs an npm dependency.
@@ -44,18 +45,21 @@ const step = (message) => console.log(`  ${message}`);
 function exercise(composeBindingTable, openGestureSession) {
 	const composed = composeBindingTable({ claim: { flag: "claims", default: true }, opens: { field: "opens" }, tenants: [{ owner: "t", rows: [{ id: "press", on: (fact) => fact.button === 0, opens: "drag" }] }] });
 	if (!composed.ok) throw new Error("composeBindingTable refused: " + JSON.stringify(composed.problems));
-	const opened = openGestureSession({ threshold: 4, gestures: [{ name: "drag", engaged: true, button: null }] });
+	const opened = openGestureSession({ threshold: 4, gestures: [{ name: "drag", engaged: true, button: 0 }] });
 	if (!opened.ok) throw new Error("openGestureSession refused: " + JSON.stringify(opened.problems));
 	const session = opened.session;
-	const fact = { at: { x: 0, y: 0 }, button: 0 };
-	session.pointerDown(fact);
+	const fact = { at: { x: 0, y: 0 }, button: 0, pointerId: 1 };
 	const answer = composed.table.matchInput(fact, null);
-	const started = session.pressMatched(answer.match);
-	const edge = session.pointerMove({ at: { x: 4, y: 0 } });
-	const beyond = session.pointerMove({ at: { x: 4 + 2 ** -50, y: 0 } });
-	const up = session.pointerUp({ button: 0 });
-	const summary = [answer.claimed, started.phase, edge.phase + ":" + edge.crossed, beyond.phase + ":" + beyond.crossed, up.phase + ":" + up.trigger].join(",");
-	if (summary !== "true,start,update:false,update:true,commit:drop") throw new Error("the package answered wrongly: " + summary);
+	const started = session.resolvePress(fact, { match: () => composed.table.matchInput(fact, null).match });
+	const edge = session.pointerMove({ at: { x: 4, y: 0 }, pointerId: 1 });
+	const other = session.pointerMove({ at: { x: 50, y: 0 }, pointerId: 2 });
+	const beyond = session.pointerMove({ at: { x: 4 + 2 ** -50, y: 0 }, button: 2, pointerId: 1 });
+	const up = session.pointerUp({ button: 2, pointerId: 1 });
+	const key = session.keyDown({ code: "KeyA" });
+	const unnamed = session.keyDown({ code: "" });
+	const lost = session.keysLost();
+	const summary = [answer.claimed, started.phase, edge.phase + ":" + edge.crossed, "other:" + other.otherPointer, beyond.phase + ":" + beyond.crossed, up.phase + ":" + up.trigger, key.tracked + ":" + key.held, unnamed.tracked, lost.released.join("+")].join(",");
+	if (summary !== "true,start,update:false,other:true,update:true,commit:drop,true:false,false,KeyA") throw new Error("the package answered wrongly: " + summary);
 	return summary;
 }
 
