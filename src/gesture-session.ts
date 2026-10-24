@@ -143,8 +143,9 @@ export function openGestureSession(declaration: { readonly threshold: number; re
 
 	/**
 	 * IB15's "the press": which press the session holds, counted -- a new number at every pointerDown, the
-	 * one resolvePress makes among them, and 0 once pointerUp or pointerLost ends it; a move or a restart,
-	 * which change the press's record, keep its number.
+	 * one resolvePress makes among them; a move or a restart, which change the press's record, keep its
+	 * number. A press pointerUp or pointerLost ends is null, and every later press is made by a pointerDown,
+	 * with a number of its own, so an ended press's number is never held again.
 	 */
 	let pressCount = 0;
 	let pressNumber = 0;
@@ -278,14 +279,12 @@ export function openGestureSession(declaration: { readonly threshold: number; re
 			const live = state.gesture;
 			const declaredButton = liveButton();
 			const commits = live !== null && (declaredButton === null || declaredButton === button || (press !== null && declaredButton === press.button));
-			pressNumber = 0;
 			settle(null, commits ? null : live);
 			return Object.freeze({ state, phase: commits ? "commit" : null, gesture: commits ? live : null, trigger, otherPointer: false });
 		},
 		/** IB10, IB11: the platform has taken the pointer: the press ends with no trigger, and the live gesture is cancelled. */
 		pointerLost(): GestureOutcome {
 			const live = state.gesture;
-			pressNumber = 0;
 			settle(null, null);
 			return live === null ? outcome(null, null) : outcome("cancel", live);
 		},
