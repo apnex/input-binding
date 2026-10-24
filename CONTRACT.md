@@ -298,7 +298,8 @@ These five operations take what a person did, and binding decides from them and 
 | `pointerLost()` | a gesture is live | `cancel`: the gesture ends; the press ends |
 | `pointerLost()` | none is live | none: the press ends |
 
-A move or a release whose fact's `pointerId` is absent is of the pointer `null`, so facts that name no pointer are all of one pointer, and none of them is another pointer's; `otherPointer` is `false` for every move and release but another pointer's.\
+A move or a release whose fact's `pointerId` is absent is of the pointer `null`, so a sequence of facts that name no pointer is of one pointer throughout; `otherPointer` is `false` for every move and release but another pointer's.\
+While the press holds a pointer that is not `null`, a fact naming none is another pointer's, so name `pointerId` on every pointer fact or on none.\
 A platform delivers a chord's presses and releases after the first as moves, so the release that ends a press names the last button released, which need not be the button that began it (measured in Chrome: `pointerdown` 0, `pointermove` 2, `pointermove` 0, `pointerup` 2); that release commits a gesture the press's button began.\
 A second pointer's press still replaces the first's: what changes is that the first pointer's later moves and release no longer move, end or commit the press the second began.\
 The cases the rule decides, with gestures `g0` and `g3` declaring buttons 0 and 3 and `gnull` declaring `null`, facts carrying no `pointerId` but in the last row, beside what `0.1.0` answered:

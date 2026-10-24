@@ -136,6 +136,7 @@ Its outcome's `phase` is never `cancel`, which its `cancelled` alone reports; a 
 
 A platform delivers a chord's later presses and releases as moves, so the release that ends a press may name another button than the one that began it; that release commits a gesture the press's button began, and a gesture of no button is committed by any release.\
 A move or a release of a pointer that is not the press's changes nothing and answers `otherPointer` `true`, so return at once; facts with no `pointerId` are all of one pointer, and a second pointer's press replaces the first's.\
+While the press holds a pointer that is not `null`, a fact naming none is another pointer's, so name `pointerId` on every pointer fact or on none.\
 A gesture started with no press stays live until an input or a request ends it, so seeing every gesture end -- on a release, a lost pointer or a focus lost -- is yours.
 
 `keyDown` keeps a code held and `keyUp` releases it; `held` says whether it was held before the call, so a `keyDown` answering `held` `true` is a repeat or a press whose release was not seen, and a `keyUp` answering `false` is a key pressed while the page lacked focus.\
