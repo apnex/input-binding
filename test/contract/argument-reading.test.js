@@ -1,6 +1,7 @@
-// argument-reading - IB1 and IB2 (I8, I11): binding reads no property of a fact but at and button, each only
-// in the operations IB1 names, in IB2's order, and writes none; every operation reads its arguments in the
-// order IB2's table gives, and a malformed argument at each place stops the reading there.
+// argument-reading - IB1 and IB2 (I8, I11): binding reads no property of a fact but at, button and
+// pointerId, and of a key fact code, each only in the operations IB1 names, in IB2's order, and writes none;
+// every operation reads its arguments in the order IB2's table gives, and a malformed argument at each place
+// stops the reading there. resolvePress's reading is held in press-resolution.test.js.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -12,7 +13,7 @@ const open = () => openGestureSession({ threshold: 4, gestures: GESTURES }).sess
 const malformed = (fn, call, label) => assert.throws(call, (e) => e instanceof TypeError && e.message.startsWith(`${fn}:`), `${fn} refuses ${label}`);
 const noGetter = (name) => ({ get: () => assert.fail(`the getter of ${name} ran`), enumerable: true, configurable: true });
 
-/** A browser's DOMPoint as draw holds one: x and y are getters on its prototype. */
+/** A point as a browser's DOMPoint is one: x and y are getters on its prototype. */
 class PointWithGetters {
 	#x;
 	#y;
@@ -28,20 +29,67 @@ class PointWithGetters {
 	}
 }
 
-test("I8: a Proxy fact records every read -- pointerDown reads at, its x and y, then button; pointerMove at; pointerUp button -- and nothing is written", () => {
+test("I8: a Proxy fact records every read -- pointerDown reads at, its x and y, button, then pointerId; pointerMove at and pointerId; pointerUp button and pointerId; keyDown and keyUp code -- and nothing is written", () => {
 	const s = open();
 	const cases = [
-		["pointerDown", (f) => s.pointerDown(f), ["fact getOwnPropertyDescriptor at", "at get x", "at get y", "fact getOwnPropertyDescriptor button"]],
-		["pointerMove", (f) => s.pointerMove(f), ["fact getOwnPropertyDescriptor at", "at get x", "at get y"]],
-		["pointerUp", (f) => s.pointerUp(f), ["fact getOwnPropertyDescriptor button"]],
+		["pointerDown", (f) => s.pointerDown(f), ["fact getOwnPropertyDescriptor at", "at get x", "at get y", "fact getOwnPropertyDescriptor button", "fact getOwnPropertyDescriptor pointerId"]],
+		["pointerMove", (f) => s.pointerMove(f), ["fact getOwnPropertyDescriptor at", "at get x", "at get y", "fact getOwnPropertyDescriptor pointerId"]],
+		["pointerUp", (f) => s.pointerUp(f), ["fact getOwnPropertyDescriptor button", "fact getOwnPropertyDescriptor pointerId"]],
+		["keyDown", (f) => s.keyDown(f), ["fact getOwnPropertyDescriptor code"]],
+		["keyUp", (f) => s.keyUp(f), ["fact getOwnPropertyDescriptor code"]],
 		["pointerLost", (f) => s.pointerLost(f), []],
 		["cancelGesture", (f) => s.cancelGesture(f), []],
+		["keysLost", (f) => s.keysLost(f), []],
 	];
-	for (const [fn, call, expected] of cases) {
-		const log = [];
-		const fact = recorded({ at: recorded({ x: 1, y: 2 }, "at", log), button: 0, key: "k", on: { kind: "thing" } }, "fact", log);
-		call(fact);
-		assert.deepEqual(log, expected, fn);
+	for (const withPointerId of [false, true]) {
+		for (const [fn, call, expected] of cases) {
+			const log = [];
+			const fact = recorded({ at: recorded({ x: 1, y: 2 }, "at", log), button: 0, code: "KeyA", key: "a", ...(withPointerId ? { pointerId: 7 } : {}), on: { kind: "thing" } }, "fact", log);
+			call(fact);
+			assert.deepEqual(log, expected, `${fn}, pointerId ${withPointerId ? "held" : "absent"}`);
+		}
+	}
+});
+
+test("IB1: pointerId absent, or present as null, is null; a safe integer is the press's pointer, written + 0; an accessor or any other value is refused with no getter called", () => {
+	const s = open();
+	s.pointerDown({ at: { x: 0, y: 0 }, button: 0 });
+	assert.equal(s.state.press.pointer, null, "absent");
+	s.pointerDown({ at: { x: 0, y: 0 }, button: 0, pointerId: null });
+	assert.equal(s.state.press.pointer, null, "null");
+	s.pointerDown({ at: { x: 0, y: 0 }, button: 0, pointerId: -0 });
+	assert.ok(Object.is(s.state.press.pointer, 0), "-0 written 0");
+	s.pointerDown({ at: { x: 0, y: 0 }, button: 0, pointerId: 2 ** 53 - 1 });
+	assert.equal(s.state.press.pointer, 2 ** 53 - 1);
+	s.pointerDown(phantom({ at: { x: 0, y: 0 }, button: 0 }, "pointerId"));
+	assert.equal(s.state.press.pointer, null, "a phantom pointerId is absent, so null");
+	s.pointerDown(Object.create({ pointerId: 3 }, { at: { value: { x: 0, y: 0 } }, button: { value: 0 } }));
+	assert.equal(s.state.press.pointer, null, "an inherited pointerId is absent");
+	for (const pointerId of [undefined, "1", 1.5, NaN, 2 ** 53, -Infinity, 1n, {}, true]) {
+		for (const [fn, call] of [["pointerDown", (id) => s.pointerDown({ at: { x: 0, y: 0 }, button: 0, pointerId: id })], ["pointerMove", (id) => s.pointerMove({ at: { x: 0, y: 0 }, pointerId: id })], ["pointerUp", (id) => s.pointerUp({ button: 0, pointerId: id })]]) {
+			const before = s.state;
+			malformed(fn, () => call(pointerId), `a pointerId ${String(pointerId)}`);
+			assert.equal(s.state, before, "nothing changed");
+		}
+	}
+	malformed("pointerDown", () => s.pointerDown(Object.defineProperty({ at: { x: 0, y: 0 }, button: 0 }, "pointerId", noGetter("pointerId"))), "an accessor pointerId");
+	malformed("pointerMove", () => s.pointerMove(Object.defineProperty({ at: { x: 0, y: 0 } }, "pointerId", noGetter("pointerId"))), "an accessor pointerId");
+	malformed("pointerUp", () => s.pointerUp(Object.defineProperty({ button: 0 }, "pointerId", noGetter("pointerId"))), "an accessor pointerId");
+});
+
+test("IB1: a key fact's code is a string or null, an own data property; absent, undefined, of another type, inherited or an accessor is refused with no getter called, and nothing changes", () => {
+	const s = open();
+	assert.equal(s.keyDown({ code: "KeyA" }).tracked, true);
+	assert.equal(s.keyDown({ code: null }).tracked, false);
+	assert.equal(s.keyUp({ code: "" }).tracked, false);
+	assert.equal(s.keyDown(Object.assign(Object.create(null), { code: "KeyB" })).tracked, true, "a fact of any prototype");
+	const held = s.state;
+	for (const fn of ["keyDown", "keyUp"]) {
+		const facts = [undefined, null, 5, "KeyA", () => 0, Object.assign(() => 0, { code: "KeyA" }), {}, { code: undefined }, { code: 5 }, { code: 0 }, { code: false }, { code: {} }, { code: ["KeyA"] }, Object.create({ code: "KeyA" }), phantom({}, "code"), Object.defineProperty({}, "code", noGetter("code"))];
+		for (const [i, fact] of facts.entries()) {
+			malformed(fn, () => s[fn](fact), `fact ${i}`);
+			assert.equal(s.state, held, "nothing changed");
+		}
 	}
 });
 
@@ -127,24 +175,32 @@ function readsBeforeRefusal(fn, call) {
 test("I11: for each operation, a malformed argument at each place in IB2's order stops the reading there, no later getter or trap called", () => {
 	const s = open();
 	const point = (log, x, y = 0) => recorded({ x, y }, "point", log);
-	// pointerDown: the fact; its at; that point's x and y; the fact's button
+	// pointerDown: the fact; its at; that point's x and y; the fact's button; its pointerId
 	assert.deepEqual(readsBeforeRefusal("pointerDown", (log) => s.pointerDown(recorded(Object.defineProperty({ button: 0 }, "at", noGetter("at")), "fact", log))), ["fact getOwnPropertyDescriptor at"]);
 	assert.deepEqual(readsBeforeRefusal("pointerDown", (log) => s.pointerDown(recorded({ button: 0 }, "fact", log))), ["fact getOwnPropertyDescriptor at"], "at absent");
 	assert.deepEqual(readsBeforeRefusal("pointerDown", (log) => s.pointerDown(recorded({ at: null, button: 0 }, "fact", log))), ["fact getOwnPropertyDescriptor at"]);
 	assert.deepEqual(readsBeforeRefusal("pointerDown", (log) => s.pointerDown(recorded({ at: point(log, NaN), button: 0 }, "fact", log))), ["fact getOwnPropertyDescriptor at", "point get x", "point get y"], "a NaN x has its y read, then throws");
 	assert.deepEqual(readsBeforeRefusal("pointerDown", (log) => s.pointerDown(recorded({ at: point(log, 0, "0"), button: 0 }, "fact", log))), ["fact getOwnPropertyDescriptor at", "point get x", "point get y"]);
-	assert.deepEqual(readsBeforeRefusal("pointerDown", (log) => s.pointerDown(recorded({ at: point(log, 0), button: 0.5 }, "fact", log))), ["fact getOwnPropertyDescriptor at", "point get x", "point get y", "fact getOwnPropertyDescriptor button"]);
+	assert.deepEqual(readsBeforeRefusal("pointerDown", (log) => s.pointerDown(recorded({ at: point(log, 0), button: 0.5, pointerId: 1 }, "fact", log))), ["fact getOwnPropertyDescriptor at", "point get x", "point get y", "fact getOwnPropertyDescriptor button"], "a malformed button stops the reading before pointerId");
+	assert.deepEqual(readsBeforeRefusal("pointerDown", (log) => s.pointerDown(recorded({ at: point(log, 0), button: 0, pointerId: "1" }, "fact", log))), ["fact getOwnPropertyDescriptor at", "point get x", "point get y", "fact getOwnPropertyDescriptor button", "fact getOwnPropertyDescriptor pointerId"]);
+	assert.deepEqual(readsBeforeRefusal("pointerDown", (log) => s.pointerDown(recorded(Object.defineProperty({ at: point(log, 0), button: 0 }, "pointerId", noGetter("pointerId")), "fact", log))), ["fact getOwnPropertyDescriptor at", "point get x", "point get y", "fact getOwnPropertyDescriptor button", "fact getOwnPropertyDescriptor pointerId"], "an accessor pointerId, no getter called");
 	const xThrows = (log) => recorded({ x: 0, y: 0 }, "point", log, { get: (t, k) => {
 		if (k === "x") throw new Error("x");
 		return t[k];
 	} });
 	assert.deepEqual(readsBeforeRefusal("pointerDown", (log) => s.pointerDown(recorded({ at: xThrows(log), button: 0 }, "fact", log))), ["fact getOwnPropertyDescriptor at", "point get x"], "a throwing x getter: y never read");
-	// pointerMove: the fact; its at; that point's x and y
-	assert.deepEqual(readsBeforeRefusal("pointerMove", (log) => s.pointerMove(recorded({ at: point(log, 0, Infinity) }, "fact", log))), ["fact getOwnPropertyDescriptor at", "point get x", "point get y"]);
+	// pointerMove: the fact; its at; that point's x and y; its pointerId
+	assert.deepEqual(readsBeforeRefusal("pointerMove", (log) => s.pointerMove(recorded({ at: point(log, 0, Infinity), pointerId: 1 }, "fact", log))), ["fact getOwnPropertyDescriptor at", "point get x", "point get y"]);
+	assert.deepEqual(readsBeforeRefusal("pointerMove", (log) => s.pointerMove(recorded({ at: point(log, 0), pointerId: 0.5 }, "fact", log))), ["fact getOwnPropertyDescriptor at", "point get x", "point get y", "fact getOwnPropertyDescriptor pointerId"]);
 	assert.deepEqual(readsBeforeRefusal("pointerMove", () => s.pointerMove(5)), []);
-	// pointerUp: the fact; its button
-	assert.deepEqual(readsBeforeRefusal("pointerUp", (log) => s.pointerUp(recorded({ button: "0" }, "fact", log))), ["fact getOwnPropertyDescriptor button"]);
+	// pointerUp: the fact; its button; its pointerId
+	assert.deepEqual(readsBeforeRefusal("pointerUp", (log) => s.pointerUp(recorded({ button: "0", pointerId: 1 }, "fact", log))), ["fact getOwnPropertyDescriptor button"]);
+	assert.deepEqual(readsBeforeRefusal("pointerUp", (log) => s.pointerUp(recorded({ button: 0, pointerId: undefined }, "fact", log))), ["fact getOwnPropertyDescriptor button", "fact getOwnPropertyDescriptor pointerId"]);
 	assert.deepEqual(readsBeforeRefusal("pointerUp", () => s.pointerUp(null)), []);
+	// keyDown and keyUp: the fact; its code
+	assert.deepEqual(readsBeforeRefusal("keyDown", (log) => s.keyDown(recorded({ code: 65, key: "a" }, "fact", log))), ["fact getOwnPropertyDescriptor code"]);
+	assert.deepEqual(readsBeforeRefusal("keyUp", (log) => s.keyUp(recorded(Object.defineProperty({ key: "a" }, "code", noGetter("code")), "fact", log))), ["fact getOwnPropertyDescriptor code"]);
+	assert.deepEqual(readsBeforeRefusal("keyDown", () => s.keyDown(() => 0)), []);
 	// pressMatched: the match's prototype; its id; its opens
 	s.pointerDown({ at: { x: 0, y: 0 }, button: 0 });
 	assert.deepEqual(readsBeforeRefusal("pressMatched", (log) => s.pressMatched(recorded(Object.create({}), "match", log))), ["match getPrototypeOf"]);

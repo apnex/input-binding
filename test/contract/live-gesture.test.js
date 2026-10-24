@@ -1,13 +1,15 @@
-// live-gesture - IB11 and IB12 (I10, I11, I12): the one live gesture, and which phase each input and each
-// request makes due for it, by the declared gestures and the inputs alone; every refusal; the identity of
-// states and records; every outcome's form; re-entry from an argument's code.
+// live-gesture - IB11 and IB12 (I10, I11, I12, I15, I18): the one live gesture, and which phase each input
+// and each request makes due for it, by the declared gestures and the inputs alone -- the release rule over
+// chords, and another pointer told apart; every refusal; the identity of states and records; every outcome's
+// form; re-entry from an argument's code.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { openGestureSession } from "@apnex/input-binding";
 import { randomTools, seededRandom } from "../support/doubles.js";
 import { describe, holdsNegativeZero, isFrozenToDepth } from "../support/frozen.js";
-import { applyToSession, initialModel, modelOf, modelStep } from "../support/lifecycle-model.js";
+import { DECIDED_CASES, DECIDED_GESTURES, runDecidedCase } from "../support/decided-cases.js";
+import { applyToSession, initialModel, modelOf, modelStep, randomOperation } from "../support/lifecycle-model.js";
 
 const GESTURES = [
 	{ name: "pending", engaged: false, button: null },
@@ -27,7 +29,7 @@ test("IB11 pointerDown: the live gesture takes a press of its declared button; a
 		if (gesture) s.startGesture({ gesture });
 		const outcome = s.pointerDown(fact(1, 2, button));
 		assert.deepEqual(outcome, { state: s.state, phase: null, gesture: null, taken }, `${gesture}, button ${button}`);
-		assert.deepEqual(s.state.press, { at: { x: 1, y: 2 }, beyond: false, unmatched: !taken });
+		assert.deepEqual(s.state.press, { at: { x: 1, y: 2 }, beyond: false, unmatched: !taken, button, pointer: null });
 		assert.deepEqual(s.state.gesture, gesture ? live(gesture) : null, "the live gesture stays");
 	}
 });
@@ -74,29 +76,45 @@ test("IB11 pressMatched is refused with no press, a taken press, or a press alre
 test("IB11 pointerMove: update while a gesture is live, none otherwise", () => {
 	const s = open();
 	s.pointerDown(fact());
-	assert.deepEqual(s.pointerMove({ at: { x: 1, y: 0 } }), { state: s.state, phase: null, gesture: null, crossed: false });
+	assert.deepEqual(s.pointerMove({ at: { x: 1, y: 0 } }), { state: s.state, phase: null, gesture: null, crossed: false, otherPointer: false });
 	s.pressMatched({ id: "r", opens: "move" });
 	const outcome = s.pointerMove({ at: { x: 9, y: 0 } });
-	assert.deepEqual(outcome, { state: s.state, phase: "update", gesture: live("move", "r"), crossed: true });
+	assert.deepEqual(outcome, { state: s.state, phase: "update", gesture: live("move", "r"), crossed: true, otherPointer: false });
 	assert.equal(outcome.gesture, s.state.gesture);
 	const s2 = open();
 	s2.startGesture({ gesture: "pending" });
 	assert.equal(s2.pointerMove({ at: { x: 1, y: 1 } }).phase, "update", "a gesture with no press updates too");
 });
 
-test("IB11 pointerUp: commit when the live gesture declares no button or the fact's; otherwise the gesture stays live; the press ends with its trigger either way", () => {
-	for (const [gesture, button, commits] of [["move", 0, true], ["move", 2, true], ["pending", 1, true], ["chain", 0, true], ["chain", 1, false], ["pan", 0, false], ["pan", 1, true]]) {
+test("IB11 pointerUp: commit when the live gesture declares no button, the fact's, or the press's; otherwise the gesture stays live; the press ends with its trigger either way", () => {
+	const cases = [
+		["move", 0, 0, true],
+		["move", 0, 2, true],
+		["pending", 0, 1, true],
+		["chain", 0, 0, true],
+		["chain", 0, 1, true],
+		["chain", 2, 1, false],
+		["chain", 2, 0, true],
+		["pan", 0, 0, false],
+		["pan", 0, 1, true],
+		["pan", 1, 0, true],
+		["pan", 2, 3, false],
+	];
+	for (const [gesture, pressButton, button, commits] of cases) {
 		const s = open();
-		s.pointerDown(fact());
+		s.pointerDown(fact(0, 0, pressButton));
 		s.startGesture({ gesture, row: "r" });
 		s.pointerMove({ at: { x: 10, y: 0 } });
 		const outcome = s.pointerUp({ button });
-		assert.deepEqual(outcome, { state: s.state, phase: commits ? "commit" : null, gesture: commits ? live(gesture, "r") : null, trigger: "drop" }, `${gesture}, button ${button}`);
+		assert.deepEqual(outcome, { state: s.state, phase: commits ? "commit" : null, gesture: commits ? live(gesture, "r") : null, trigger: "drop", otherPointer: false }, `${gesture}, the press of ${pressButton}, the release of ${button}`);
 		assert.equal(s.state.press, null);
 		assert.deepEqual(s.state.gesture, commits ? null : live(gesture, "r"));
 	}
 	const s = open();
-	assert.deepEqual(s.pointerUp({ button: 0 }), { state: s.state, phase: null, gesture: null, trigger: "click" });
+	assert.deepEqual(s.pointerUp({ button: 0 }), { state: s.state, phase: null, gesture: null, trigger: "click", otherPointer: false });
+	s.startGesture({ gesture: "pan" });
+	assert.equal(s.pointerUp({ button: 0 }).phase, null, "with no press, only the gesture's button commits it");
+	assert.equal(s.pointerUp({ button: 1 }).phase, "commit");
 });
 
 test("IB11 pointerLost: cancel while a gesture is live; the press ends; none otherwise", () => {
@@ -107,7 +125,7 @@ test("IB11 pointerLost: cancel while a gesture is live; the press ends; none oth
 	s.pointerDown(fact());
 	s.pressMatched({ id: "r", opens: "chain" });
 	assert.deepEqual(s.pointerLost(), { state: s.state, phase: "cancel", gesture: live("chain", "r") });
-	assert.deepEqual(s.state, { press: null, gesture: null });
+	assert.deepEqual(s.state, { press: null, gesture: null, keys: [] });
 	s.startGesture({ gesture: "move" });
 	assert.equal(s.pointerLost().phase, "cancel", "a gesture with no press is cancelled too");
 });
@@ -174,15 +192,8 @@ test("I10: over generated sequences of operations, every outcome names the phase
 		const endedLives = new Set();
 		let life = null;
 		for (let k = int(5, 40); k > 0; k--) {
-			const point = () => ({ x: pick([0, 1, 3, 4, 5, -6, 2.5]), y: pick([0, 3, -4, 0.5]) });
-			const kind = pick(["down", "down", "matched", "matched", "move", "move", "move", "up", "up", "lost", "start", "become", "cancel"]);
-			const op = { kind };
-			if (kind === "down") Object.assign(op, point(), { button: pick([0, 0, 1, 2]) });
-			if (kind === "move") Object.assign(op, point());
-			if (kind === "up") op.button = pick([0, 0, 1, 2]);
-			if (kind === "matched") Object.assign(op, { id: `r${int(0, 5)}`, opens: pick([null, ...GESTURES.map((g) => g.name)]) });
-			if (kind === "start") Object.assign(op, { gesture: pick(GESTURES).name }, chance(0.5) ? { row: `r${int(0, 5)}` } : {}, chance(0.5) ? { from: point() } : {});
-			if (kind === "become") Object.assign(op, { gesture: pick(GESTURES).name }, chance(0.5) ? { from: point() } : {});
+			const op = randomOperation({ int, pick, chance }, GESTURES);
+			const kind = op.kind;
 			const expected = modelStep(model, declaration, op);
 			const before = s.state;
 			if (expected.refused) {
@@ -226,8 +237,15 @@ test("IB12: each identity case -- the very same state, press, point and gesture 
 	s.pointerDown(fact(2, 3));
 	const pressed = s.state;
 	assert.notEqual(pressed, empty);
-	assert.equal(s.pointerDown(fact(2, 3)).state, pressed, "a press at the press's own point, not beyond, unmatched alike");
-	assert.equal(s.pointerDown({ at: { x: 2 + 0, y: 3 }, button: 1 }).state, pressed, "the button is not part of the press");
+	assert.equal(s.pointerDown(fact(2, 3)).state, pressed, "a press at the press's own point, not beyond, unmatched alike, of the same button and pointer");
+	assert.equal(s.pointerDown({ at: { x: 2 + 0, y: 3 }, button: -0, pointerId: null }).state, pressed, "a button of -0 is the button 0, and a null pointerId no pointer");
+	const otherButton = s.pointerDown({ at: { x: 2, y: 3 }, button: 1 }).state;
+	assert.notEqual(otherButton, pressed, "the button is part of the press: a new press and state");
+	assert.equal(otherButton.press.at, pressed.press.at, "its point the very same record");
+	const otherPointer = s.pointerDown({ at: { x: 2, y: 3 }, button: 1, pointerId: 4 }).state;
+	assert.notEqual(otherPointer.press, otherButton.press, "the pointer is part of the press too");
+	assert.equal(s.pointerDown({ at: { x: 2, y: 3 }, button: 1, pointerId: 4 }).state, otherPointer);
+	s.pointerDown(fact(2, 3));
 	assert.notEqual(s.pointerDown(fact(2, 4)).state, pressed);
 	const at = s.state.press.at;
 	s.pointerMove({ at: { x: 2, y: 9 } });
@@ -261,16 +279,20 @@ test("IB12: each operation's outcome, its keys in the order the table writes the
 	const keys = (o) => Object.keys(o);
 	assert.deepEqual(keys(s.pointerDown(fact())), ["state", "phase", "gesture", "taken"]);
 	assert.deepEqual(keys(s.pressMatched({ id: "r", opens: "move" })), ["state", "phase", "gesture"]);
-	assert.deepEqual(keys(s.pointerMove({ at: { x: 1, y: 1 } })), ["state", "phase", "gesture", "crossed"]);
+	assert.deepEqual(keys(s.pointerMove({ at: { x: 1, y: 1 } })), ["state", "phase", "gesture", "crossed", "otherPointer"]);
 	assert.deepEqual(keys(s.becomeGesture({ gesture: "pending" })), ["state", "phase", "gesture", "was"]);
-	assert.deepEqual(keys(s.pointerUp({ button: 0 })), ["state", "phase", "gesture", "trigger"]);
+	assert.deepEqual(keys(s.pointerUp({ button: 0 })), ["state", "phase", "gesture", "trigger", "otherPointer"]);
+	s.pointerDown({ ...fact(), pointerId: 1 });
+	assert.deepEqual(keys(s.pointerMove({ at: { x: 1, y: 1 }, pointerId: 2 })), ["state", "phase", "gesture", "crossed", "otherPointer"], "another pointer's move");
+	assert.deepEqual(keys(s.pointerUp({ button: 0, pointerId: 2 })), ["state", "phase", "gesture", "trigger", "otherPointer"], "another pointer's release");
+	s.pointerLost();
 	assert.deepEqual(keys(s.startGesture({ gesture: "chain" })), ["state", "phase", "gesture"]);
 	assert.deepEqual(keys(s.cancelGesture()), ["state", "phase", "gesture"]);
 	assert.deepEqual(keys(s.pointerLost()), ["state", "phase", "gesture"]);
 	s.pointerDown(fact(1, -1));
 	s.startGesture({ gesture: "pan", row: "r" });
-	assert.deepEqual(keys(s.state), ["press", "gesture"]);
-	assert.deepEqual(keys(s.state.press), ["at", "beyond", "unmatched"]);
+	assert.deepEqual(keys(s.state), ["press", "gesture", "keys"]);
+	assert.deepEqual(keys(s.state.press), ["at", "beyond", "unmatched", "button", "pointer"]);
 	assert.deepEqual(keys(s.state.press.at), ["x", "y"]);
 	assert.deepEqual(keys(s.state.gesture), ["name", "row", "engaged"]);
 	const a = s.cancelGesture(), b = s.cancelGesture();
@@ -380,4 +402,145 @@ test("I11: an argument's trap or getter that calls the session takes effect befo
 		},
 	);
 	assert.equal(w.pressMatched(match).phase, "start", "pressMatched sees no live gesture, so starts rather than cancels");
+});
+
+test("I15, IB11: the decided cases -- a chord's last release commits when the press began with the gesture's button; another pointer's release changes nothing", () => {
+	for (const [label, steps, , expected] of DECIDED_CASES) {
+		const s = openGestureSession({ threshold: 4, gestures: DECIDED_GESTURES }).session;
+		const { outcome, before } = runDecidedCase(s, steps);
+		assert.equal(outcome.phase, expected, label);
+		if (label.includes("pointer 7")) {
+			assert.equal(outcome.otherPointer, true, label);
+			assert.equal(outcome.trigger, null, label);
+			assert.equal(outcome.state, before, "nothing changed: the very same state");
+			assert.deepEqual(s.state.gesture, { name: "g0", row: "r", engaged: true }, "the gesture still live");
+			assert.equal(s.state.press.pointer, 7, "the press still held");
+		} else {
+			assert.equal(outcome.otherPointer, false, label);
+			assert.equal(s.state.press, null, `${label}: the press ended`);
+			assert.equal(s.state.gesture === null, expected === "commit", `${label}: the gesture ${expected === "commit" ? "ended" : "still live"}`);
+		}
+	}
+});
+
+test("I15: over generated chords -- a gesture declaring g, opened by a press of buttons 0 to 4 or with no press, taken or not, other buttons pressed and released as moves in both orders, the release naming any button -- commit exactly when g is null, the release names g, or the press began with g", () => {
+	const rnd = seededRandom();
+	const { int, pick, chance, shuffle } = randomTools(rnd);
+	const counts = { commit: 0, none: 0, byPress: 0, negativeZero: 0, restarted: 0 };
+	for (let n = 0; n < 3000; n++) {
+		const g = pick([null, 0, 1, 2, 3, 4]);
+		const s = openGestureSession({ threshold: 4, gestures: [{ name: "G", engaged: true, button: g }, { name: "H", engaged: false, button: g }] }).session;
+		const button = () => {
+			const b = int(0, 4);
+			return b === 0 && chance(0.5) ? -0 : b;
+		};
+		const opening = pick(["press", "start then press", "start alone"]);
+		let pressButton = null;
+		if (opening === "press") {
+			pressButton = button();
+			s.pointerDown({ at: { x: 0, y: 0 }, button: pressButton });
+			assert.equal(s.pressMatched({ id: "r", opens: "G" }).phase, "start");
+		} else {
+			s.startGesture({ gesture: "G" });
+			if (opening === "start then press") {
+				pressButton = button();
+				const taken = s.pointerDown({ at: { x: 0, y: 0 }, button: pressButton }).taken;
+				assert.equal(taken, g !== null && g === pressButton);
+			}
+		}
+		if (pressButton !== null) {
+			assert.ok(!Object.is(s.state.press.button, -0), "press.button holds no -0");
+			if (Object.is(pressButton, -0)) counts.negativeZero++;
+		}
+		// other buttons pressed and released as moves, in either order, with restarts among them
+		const others = shuffle([0, 1, 2, 3, 4].filter((b) => b !== pressButton)).slice(0, int(0, 3));
+		const events = shuffle([...others.map((b) => ({ b, down: true })), ...others.map((b) => ({ b, down: false }))]);
+		for (const { b } of events) {
+			s.pointerMove({ at: { x: int(-9, 9), y: int(-9, 9) }, button: b, buttons: int(0, 31) });
+			if (chance(0.15)) {
+				s.becomeGesture({ gesture: pick(["G", "H"]), from: { x: int(-9, 9), y: 0 } });
+				counts.restarted++;
+			}
+			if (pressButton !== null) assert.ok(Object.is(s.state.press.button, pressButton + 0), "the press's button survives moves and restarts");
+		}
+		const release = int(0, 4);
+		const pressBefore = s.state.press;
+		const outcome = s.pointerUp({ button: release });
+		const commits = g === null || release === g || (pressBefore !== null && pressBefore.button === g);
+		assert.equal(outcome.phase, commits ? "commit" : null, JSON.stringify({ g, opening, pressButton, events, release }));
+		assert.equal(outcome.otherPointer, false);
+		counts[commits ? "commit" : "none"]++;
+		if (commits && g !== null && release !== g) counts.byPress++;
+	}
+	for (const [key, count] of Object.entries(counts)) assert.ok(count > 100, `${key}: ${count}`);
+});
+
+test("I18: over generated sequences of two pointers, a move or release of the pointer that is not the press's changes nothing and answers otherPointer true; every outcome as the model gives", () => {
+	const rnd = seededRandom();
+	const { int, pick, chance } = randomTools(rnd);
+	const declaration = { threshold: 4, gestures: GESTURES };
+	let other = 0, own = 0;
+	for (let n = 0; n < 800; n++) {
+		const s = openGestureSession(declaration).session;
+		let model = initialModel();
+		for (let k = int(5, 30); k > 0; k--) {
+			const op = randomOperation({ int, pick, chance }, GESTURES);
+			if (op.kind === "down" || op.kind === "move" || op.kind === "up") {
+				const pointer = pick([undefined, null, 1, 1, 2, 2, -0]);
+				if (pointer !== undefined) op.pointer = pointer;
+			}
+			const expected = modelStep(model, declaration, op);
+			const before = s.state;
+			if (expected.refused) {
+				assert.throws(() => applyToSession(s, op), (e) => e.constructor === Error);
+				continue;
+			}
+			const outcome = applyToSession(s, op);
+			// -0 and 0 name one pointer: IB1 writes the pointer + 0, and === compares them equal
+			const isOther = (op.kind === "move" || op.kind === "up") && before.press !== null && (op.pointer ?? null) !== before.press.pointer;
+			if (op.kind === "move" || op.kind === "up") {
+				assert.equal(outcome.otherPointer, isOther, describe(op));
+				if (isOther) {
+					assert.equal(outcome.state, before, "another pointer's move or release changes nothing: the very same state");
+					assert.equal(outcome.phase, null);
+					assert.equal(outcome.gesture, null);
+					assert.equal(op.kind === "move" ? outcome.crossed : outcome.trigger, op.kind === "move" ? false : null);
+					other++;
+				} else own++;
+			}
+			assert.equal(outcome.phase, expected.phase, describe(op));
+			for (const [key, value] of Object.entries(expected.extra ?? {})) assert.deepEqual(key === "was" ? { ...outcome.was } : outcome[key], value, key);
+			model = expected.model;
+			assert.deepEqual(modelOf(s.state), model);
+		}
+	}
+	assert.ok(other > 500 && own > 2000, `${other} of another pointer, ${own} of the press's own`);
+});
+
+test("I18: facts with no pointerId answer as facts whose pointers are equal -- the same sequence with every pointer fact naming one pointer gives the same outcomes but for the press's pointer", () => {
+	const rnd = seededRandom();
+	const { int, pick, chance } = randomTools(rnd);
+	const declaration = { threshold: 4, gestures: GESTURES };
+	const strip = (value) => JSON.parse(JSON.stringify(value, (key, v) => (key === "pointer" ? undefined : v)));
+	let steps = 0;
+	for (let n = 0; n < 400; n++) {
+		const bare = openGestureSession(declaration).session;
+		const named = openGestureSession(declaration).session;
+		for (let k = int(5, 30); k > 0; k--) {
+			const op = randomOperation({ int, pick, chance }, GESTURES);
+			const run = (session, o) => {
+				try {
+					return { outcome: applyToSession(session, o) };
+				} catch (error) {
+					return { refused: error.constructor.name };
+				}
+			};
+			const a = run(bare, op);
+			const b = run(named, op.kind === "down" || op.kind === "move" || op.kind === "up" ? { ...op, pointer: 9 } : op);
+			assert.deepEqual(strip(a), strip(b), describe(op));
+			if (a.outcome && "otherPointer" in a.outcome) assert.equal(a.outcome.otherPointer, false, "no pointerId is never another pointer's");
+			steps++;
+		}
+	}
+	assert.ok(steps > 5000);
 });

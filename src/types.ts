@@ -153,11 +153,17 @@ export interface GestureSessionDeclaration {
 	readonly gestures: readonly GestureDeclaration[];
 }
 
-/** A pointer button held: where it went down, whether it has travelled beyond the threshold, and whether it is still unmatched (IB10). */
+/**
+ * A pointer button held: where it went down, whether it has travelled beyond the threshold, whether it is
+ * still unmatched, the button that began it, and the pointer that holds it, or null when the fact named
+ * none (IB10).
+ */
 export interface Press {
 	readonly at: Point;
 	readonly beyond: boolean;
 	readonly unmatched: boolean;
+	readonly button: number;
+	readonly pointer: number | null;
 }
 
 /** The one gesture started and not yet ended: its name, the id of the row that opened it or null, and whether it is engaged (IB11). */
@@ -167,10 +173,11 @@ export interface LiveGesture {
 	readonly engaged: boolean;
 }
 
-/** A session's whole state (IB12). */
+/** A session's whole state: the press, the live gesture, and the codes of the keys held, in the order first pressed (IB12, IB14). */
 export interface SessionState {
 	readonly press: Press | null;
 	readonly gesture: LiveGesture | null;
+	readonly keys: readonly string[];
 }
 
 /** A step of a gesture's life binding makes due (IB11). */
@@ -193,14 +200,16 @@ export interface PointerDownOutcome extends GestureOutcome {
 	readonly taken: boolean;
 }
 
-/** pointerMove's outcome: and whether this move made the press beyond the threshold. */
+/** pointerMove's outcome: and whether this move made the press beyond the threshold, and whether it was another pointer's, which changes nothing (IB11). */
 export interface PointerMoveOutcome extends GestureOutcome {
 	readonly crossed: boolean;
+	readonly otherPointer: boolean;
 }
 
-/** pointerUp's outcome: and what the release is. */
+/** pointerUp's outcome: and what the release is -- null when it was another pointer's, which changes nothing (IB11). */
 export interface PointerUpOutcome extends GestureOutcome {
-	readonly trigger: Trigger;
+	readonly trigger: Trigger | null;
+	readonly otherPointer: boolean;
 }
 
 /** becomeGesture's outcome: and the gesture as it was. */
@@ -208,20 +217,31 @@ export interface BecomeGestureOutcome extends GestureOutcome {
 	readonly was: LiveGesture;
 }
 
-/** The fact pointerDown reads: its `at` and its `button`, own data properties; every other property is unread. */
+/**
+ * The fact pointerDown reads: its `at` and its `button`, own data properties, and its `pointerId`, absent
+ * or an own data property holding null or a safe integer; every other property is unread (IB1).
+ */
 export interface PointerDownFact {
 	readonly at: Point;
 	readonly button: number;
+	readonly pointerId?: number | null;
 }
 
-/** The fact pointerMove reads: its `at`, an own data property. */
+/** The fact pointerMove reads: its `at`, an own data property, and its `pointerId`, as pointerDown reads it. */
 export interface PointerMoveFact {
 	readonly at: Point;
+	readonly pointerId?: number | null;
 }
 
-/** The fact pointerUp reads: its `button`, an own data property. */
+/** The fact pointerUp reads: its `button`, an own data property, and its `pointerId`, as pointerDown reads it. */
 export interface PointerUpFact {
 	readonly button: number;
+	readonly pointerId?: number | null;
+}
+
+/** The fact keyDown and keyUp read: its `code`, an own data property holding a string or null; every other property is unread (IB1, IB14). */
+export interface KeyFact {
+	readonly code: string | null;
 }
 
 /** What pressMatched reads of a match: its id, and the gesture it opens or null (IB11). */
@@ -243,7 +263,47 @@ export interface BecomeGestureArgs {
 	readonly from?: Point;
 }
 
-/** The state of one input surface's presses and gestures between calls, opened and owned by the application (IB9 to IB12). */
+/**
+ * keyDown's and keyUp's outcome (IB14): `tracked` false when the fact's code is '' or null, the state then
+ * unchanged and `held` null; otherwise `held`, whether the code was held before the call.
+ */
+export interface KeyOutcome {
+	readonly state: SessionState;
+	readonly tracked: boolean;
+	readonly held: boolean | null;
+}
+
+/** keysLost's outcome (IB14): `released`, the very array of codes the state held before the call. */
+export interface KeysLostOutcome {
+	readonly state: SessionState;
+	readonly released: readonly string[];
+}
+
+/**
+ * resolvePress's handlers (IB15): `match`, called with no argument once the press is made and not taken,
+ * answering the press's match or null; and optionally `cancelled`, called with the cancel outcome when the
+ * match cancels a live gesture, before the start it opens is made.
+ */
+export interface ResolvePressHandlers<Match extends PressMatch = PressMatch> {
+	readonly match: () => Match | null;
+	readonly cancelled?: (outcome: GestureOutcome) => unknown;
+}
+
+/**
+ * resolvePress's outcome (IB15): whether the press was taken; the value `match` answered, or null; the cancel
+ * outcome handed to `cancelled`, or null; and the press's resolution -- `start` and the gesture started, or
+ * null -- never `cancel`, which `cancelled` alone reports.
+ */
+export interface ResolvePressOutcome<Match extends PressMatch = PressMatch> {
+	readonly state: SessionState;
+	readonly taken: boolean;
+	readonly match: Match | null;
+	readonly cancelled: GestureOutcome | null;
+	readonly phase: "start" | null;
+	readonly gesture: LiveGesture | null;
+}
+
+/** The state of one input surface's presses, gestures and held keys between calls, opened and owned by the application (IB9 to IB15). */
 export interface GestureSession {
 	readonly declaration: GestureSessionDeclaration;
 	readonly state: SessionState;
@@ -255,6 +315,10 @@ export interface GestureSession {
 	startGesture(args: StartGestureArgs): GestureOutcome;
 	becomeGesture(args: BecomeGestureArgs): BecomeGestureOutcome;
 	cancelGesture(): GestureOutcome;
+	resolvePress<Match extends PressMatch>(fact: PointerDownFact, handlers: ResolvePressHandlers<Match>): ResolvePressOutcome<Match>;
+	keyDown(fact: KeyFact): KeyOutcome;
+	keyUp(fact: KeyFact): KeyOutcome;
+	keysLost(): KeysLostOutcome;
 }
 
 /** What openGestureSession returns: the session, or every problem of its declaration (IB9). */

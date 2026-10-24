@@ -2,7 +2,7 @@
 // strict settings: traceInput's and matchInput's context may be omitted exactly when undefined is
 // assignable to the table's context type (IB2 rule 3), and must be given otherwise. Each line marked as
 // an expected error must fail to compile, or the compile fails.
-import { composeBindingTable, openGestureSession, type BindingRow, type BindingTable, type GuardState, type MatchAnswer, type TraceRecord } from "@apnex/input-binding";
+import { composeBindingTable, openGestureSession, type BindingEntry, type BindingRow, type BindingTable, type GestureOutcome, type GuardState, type KeyFact, type KeyOutcome, type KeysLostOutcome, type MatchAnswer, type ResolvePressHandlers, type ResolvePressOutcome, type SessionState, type TraceRecord } from "@apnex/input-binding";
 
 type LooseRow = BindingRow<Fact, Situation | undefined>;
 
@@ -66,15 +66,62 @@ composeBindingTable<Fact, Situation>({ tenants: [{ owner: "a", rows: [{ id: "x",
 composeBindingTable<Fact, Situation>({ tenants: [{ owner: "a", rows: [{ id: "x", on: () => true, when: (s) => s.missing }] }] });
 
 // The session takes facts holding at and button, and its outcomes are typed.
+declare const table: BindingTable<Fact, Situation, Row>;
 const session = openGestureSession({ threshold: 4, gestures: [{ name: "move", engaged: true, button: null }] });
 if (session.ok) {
 	const down = session.session.pointerDown(fact);
 	const taken: boolean = down.taken;
 	const up = session.session.pointerUp(fact);
-	const trigger: "click" | "drop" = up.trigger;
+	const trigger: "click" | "drop" | null = up.trigger;
+	// @ts-expect-error -- the trigger is null when the release was another pointer's
+	const always: "click" | "drop" = up.trigger;
+	const other: boolean = up.otherPointer;
 	// @ts-expect-error -- pointerMove needs a fact holding at
 	session.session.pointerMove({ button: 0 });
-	void [taken, trigger];
+	void [taken, trigger, always, other];
+
+	// The press holds its button and its pointer; the state the keys held.
+	const state: SessionState = session.session.state;
+	const button: number | undefined = state.press?.button;
+	const pointer: number | null | undefined = state.press?.pointer;
+	const keys: readonly string[] = state.keys;
+	// @ts-expect-error -- the keys held cannot be written
+	state.keys.push("KeyA");
+
+	// A fact as capture makes one, its pointerId null or a number, is a pointer fact.
+	const delivered = { at: { x: 1, y: 2 }, button: 0, pointerId: null, buttons: 1, key: null };
+	session.session.pointerMove(delivered);
+	session.session.pointerUp({ button: 2, pointerId: 7 });
+
+	// Keys, held and lost.
+	const keyFact: KeyFact = { code: "KeyA" };
+	const pressed: KeyOutcome = session.session.keyDown({ code: "KeyA", key: "a", repeat: false } as KeyFact);
+	const held: boolean | null = pressed.held;
+	const untracked: KeyOutcome = session.session.keyUp({ code: null });
+	const lost: KeysLostOutcome = session.session.keysLost();
+	const released: readonly string[] = lost.released;
+	// @ts-expect-error -- a key fact holds code
+	session.session.keyDown({ key: "a" });
+	// @ts-expect-error -- a code is a string or null
+	session.session.keyUp({ code: 65 });
+
+	// A press resolved in one call, its match a table's match.
+	const handlers: ResolvePressHandlers<BindingEntry<Row>> = {
+		match: () => table.matchInput(fact, { mode: "edit" }).match,
+		cancelled: (outcome: GestureOutcome) => outcome.gesture?.name,
+	};
+	const resolved: ResolvePressOutcome<BindingEntry<Row>> = session.session.resolvePress(fact, handlers);
+	const run: string | undefined = resolved.match?.row.run;
+	const phase: "start" | null = resolved.phase;
+	const inferred = session.session.resolvePress(fact, { match: () => null });
+	const nothing: { readonly id: string; readonly opens: string | null } | null = inferred.match;
+	// @ts-expect-error -- the handlers hold match
+	session.session.resolvePress(fact, { cancelled: () => undefined });
+	// @ts-expect-error -- match answers a match or null
+	session.session.resolvePress(fact, { match: () => "row" });
+	// @ts-expect-error -- the phase is never cancel, which cancelled alone reports
+	const cancelPhase: "cancel" = resolved.phase;
+	void [button, pointer, keys, keyFact, held, untracked, released, run, phase, nothing, cancelPhase];
 }
 
 void [a1, a2, a3, a4, a5];

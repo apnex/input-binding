@@ -80,14 +80,18 @@ test("IB9: the declaration is a frozen copy { threshold, gestures }, each gestur
 	assert.equal(session.declaration.gestures[0].name, "a", "a copy");
 });
 
-test("IB9: a session holds its declaration, its state and its eight operations, frozen; two sessions share nothing", () => {
+test("IB9, IB12: a session holds its declaration, its state and its twelve operations, frozen, in IB12's order; two sessions share nothing", () => {
 	const opened = openGestureSession({ threshold: 4, gestures: [DRAG] });
 	assert.deepEqual(Object.keys(opened), ["ok", "session"]);
-	assert.deepEqual(Object.keys(opened.session), ["declaration", "state", "pointerDown", "pressMatched", "pointerMove", "pointerUp", "pointerLost", "startGesture", "becomeGesture", "cancelGesture"]);
+	assert.deepEqual(Object.keys(opened.session), ["declaration", "state", "pointerDown", "pressMatched", "pointerMove", "pointerUp", "pointerLost", "startGesture", "becomeGesture", "cancelGesture", "resolvePress", "keyDown", "keyUp", "keysLost"]);
 	assert.ok(isFrozenToDepth(opened));
-	assert.deepEqual(opened.session.state, { press: null, gesture: null });
+	assert.deepEqual(opened.session.state, { press: null, gesture: null, keys: [] });
+	assert.deepEqual(Object.keys(opened.session.state), ["press", "gesture", "keys"]);
 	const other = openGestureSession({ threshold: 4, gestures: [DRAG] }).session;
 	assert.notEqual(other.state, opened.session.state);
+	assert.notEqual(other.state.keys, opened.session.state.keys, "not even the empty array of keys held");
+	opened.session.keyDown({ code: "KeyA" });
+	assert.deepEqual(other.state.keys, []);
 	opened.session.pointerDown({ at: { x: 0, y: 0 }, button: 0 });
 	assert.equal(other.state.press, null);
 	const { pointerDown, startGesture } = other;

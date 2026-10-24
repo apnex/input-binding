@@ -63,10 +63,10 @@ test("IB10: a move with no press changes no press; crossed falls once; a press n
 	down(s, 0, 0);
 	move(s, 5, 0);
 	down(s, 50, 50);
-	assert.deepEqual(s.state.press, { at: { x: 50, y: 50 }, beyond: false, unmatched: true }, "a second press replaces the first, whatever it was");
+	assert.deepEqual(s.state.press, { at: { x: 50, y: 50 }, beyond: false, unmatched: true, button: 0, pointer: null }, "a second press replaces the first, whatever it was");
 	move(s, 55, 50);
 	s.startGesture({ gesture: "g", from: { x: 100, y: 100 } });
-	assert.deepEqual(s.state.press, { at: { x: 100, y: 100 }, beyond: false, unmatched: true }, "a restart from `from`, not beyond, unmatched kept");
+	assert.deepEqual(s.state.press, { at: { x: 100, y: 100 }, beyond: false, unmatched: true, button: 0, pointer: null }, "a restart from `from`, not beyond, unmatched, its button and its pointer kept");
 	assert.equal(move(s, 103, 100).crossed, false);
 	assert.equal(move(s, 105, 100).crossed, true, "measured from the restart");
 });
