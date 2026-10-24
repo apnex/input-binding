@@ -131,7 +131,7 @@ Where section 3.2 or 3.5 was silent or left a choice open, the build made these;
 3. I18's "facts with no `pointerId` answer as facts whose pointers are equal" holds of a sequence whose facts all name no pointer; by IB11's table, a release naming none while the press names one is another pointer's. The sentence should say "a sequence of facts with no `pointerId`".
 
 **Mutants (GR2).**\
-Each new rule's tests were run against mutants of it, each made as text on one file, built when it was a file of `src/`, and run against the tests that hold that file -- the contract, corpus and compatibility tests for `src/`, the gate checks' tests for `tools/` and the workflow, the contract-coverage test for `CONTRACT.md`, the test beside `0.1.0` for its fixture -- by a driver outside the repository, every file restored after each and the tree found clean after all; every one of the 51 was killed:
+Each new rule's tests were run against mutants of it, each made as text on one file, built when it was a file of `src/`, and run against the tests that hold that file -- the contract, corpus and compatibility tests for `src/`, the gate checks' tests for `tools/` and the workflow, the contract-coverage test for `CONTRACT.md`, the test beside `0.1.0` for its fixture -- by a driver outside the repository, every file restored after each and the tree found clean after all; every one of the 52 was killed, the verifier's M7 among them, which survived the tests sealed and was killed once I11's case for `resolvePress` was added:
 
 | Rule | Mutant | Tests failing, one of them |
 |---|---|---|
@@ -174,6 +174,7 @@ Each new rule's tests were run against mutants of it, each made as text on one f
 | IB15 | a `null` answer read as a match | 5, IB15's action and `null` |
 | IB15 | handlers holding another key accepted | 1, IB15's malformed handlers |
 | IB15 | `cancelled` present as `undefined` taken as absent | 1, IB15's malformed handlers |
+| IB15 | `cancelled`'s descriptor read before `match` is judged, the verifier's M7 | 1, I11's malformed arguments to `resolvePress` |
 | IB15 | the handlers read before the fact | 2, IB2's `resolvePress` reads |
 | B424 | the runtime check allowing `WeakMap` too | 1, I14's allow-list |
 | B424 | the runtime check with no allow-list | 2, I14's allow-list |
