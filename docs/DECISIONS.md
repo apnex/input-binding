@@ -200,3 +200,18 @@ Bytes as shipped, comments included, then with comments removed, each also gzipp
 | shared | `reflection.js`, `argument-reading.js`, `declaration-problems.js`, `index.js`, `types.js` | 14,506 | 5,068 | 8,476 | 2,639 |
 
 The session grew by 9,025 bytes as shipped, 6,094 once comments are removed, for its four operations, its keys and its other pointer; the table did not change.
+
+---
+
+## D4 - The tests run on test-harness
+
+**Ruled by:** the director, 2026-10-31 (draw's `H26-19` as amended: no test run may leave anything behind, and what the repositories' copies share is one component, `test-harness`, taken by each in its tests alone, pinned to its release file).\
+**Affects:** `package.json` and its lockfile, `tools/consumer-test.mjs` and the tests that make scratch folders; nothing in `src/`, and nothing the package ships.
+
+**Ruling.**\
+`@apnex/test-harness` `0.1.0` is a development dependency, pinned to its release file by its URL and, in the lockfile, by its hash; `files` is unchanged, so no file of it is packed.\
+`npm test` runs the tests under its runner, `test-harness run`, and `npm run consumer` the consumer test under `test-harness exec`, so each run has a folder of its own and fails on anything left in it or still running after it.\
+The consumer test serves the page and the installed files with `serveStatic` and loads them in a one-shot Chrome with `dumpDom`, in a folder of its own -- so Chrome's lock folder, crash reporter and keyring use no longer reach the caller's temporary folder or the user's own -- and its scratch folder is a `scratchFolder`, removed however the test ends; the page, the import map and the exercise are its own, as before.\
+The tests' scratch folders are `scratchFolder`s too.\
+The consumer test's `--keep` is gone: a folder kept would be one the run fails on.\
+The runner is not given `--test-force-exit`, which `test-harness`'s README recommends: on Node 22 it cut the results a test file reports when they are many -- `snap-grid`'s `test/contract/declared-grid.test.js` reported 61 of its 78 tests with it -- and no test here leaves anything running for it to end.
