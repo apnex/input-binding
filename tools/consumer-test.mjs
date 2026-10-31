@@ -4,7 +4,7 @@
 //
 // It packs the package -- or takes a tarball already packed, such as the one a release attaches --
 // installs the file into an empty project with --omit=dev, imports every export by name in Node, then
-// serves the installed files with a small static server and loads every export in headless Chrome
+// serves the installed files and loads every export in headless Chrome
 // through an import map made as draw makes its own: one entry per export, never a trailing-slash prefix,
 // each export's address carrying the package's version. In Node and in the page alike, the exercise
 // below composes a table, matches a press against it, and drives a session through the press, resolved in
@@ -12,24 +12,26 @@
 // step beyond it, and a chord's release naming another button, which commits; then a key held, a key with no
 // code and a focus lost; the page writes what it saw into itself, which Chrome's --dump-dom returns.
 //
-// Chrome is $CHROME, or google-chrome on PATH. It runs with a profile of its own in a scratch directory,
-// so it never touches another Chrome on the machine. Nothing here needs an npm dependency.
+// The server, the one-shot Chrome and the scratch folder are test-harness's (a development dependency,
+// pinned to its release file, which nothing the package ships holds): serveStatic, dumpDom -- $CHROME, or
+// a Chrome on PATH, in a folder of its own, gone with everything it made -- and scratchFolder, removed
+// however this test ends. `npm run consumer` runs it under test-harness's runner, which fails on anything
+// it leaves behind.
 //
-// Usage:  node tools/consumer-test.mjs [--tarball FILE] [--keep]    (or INPUT_BINDING_TARBALL=FILE)
+// Usage:  node tools/consumer-test.mjs [--tarball FILE]    (or INPUT_BINDING_TARBALL=FILE)
 import { execFile, execFileSync } from "node:child_process";
 import fs from "node:fs";
-import http from "node:http";
-import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
+import { dumpDom, findChrome, scratchFolder, serveStatic } from "@apnex/test-harness";
+
 const run = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const keep = process.argv.includes("--keep");
 const tarballAt = process.argv.indexOf("--tarball");
 const given = tarballAt > -1 ? process.argv[tarballAt + 1] : process.env.INPUT_BINDING_TARBALL || null;
-const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "input-binding-consumer-"));
+const scratch = scratchFolder("input-binding-consumer-");
 const fail = (message) => {
 	console.log(`consumer-test: FAIL -- ${message}`);
 	process.exitCode = 1;
@@ -143,37 +145,16 @@ ${exercise.toString()}
 `;
 
 	// 5. a static server: the page, and the installed package's files under its versioned address
-	const requests = [];
-	const server = http.createServer((req, res) => {
-		const url = new URL(req.url, "http://localhost");
-		let status = 404, body = "not found", type = "text/plain";
-		if (url.pathname === "/" || url.pathname === "/index.html") {
-			status = 200;
-			body = page;
-			type = "text/html; charset=utf-8";
-		} else if (url.pathname.startsWith(base)) {
-			const rel = decodeURIComponent(url.pathname.slice(base.length));
-			const file = path.resolve(installed, "dist", rel);
-			if (file.startsWith(path.join(installed, "dist") + path.sep) && fs.existsSync(file) && fs.statSync(file).isFile()) {
-				status = 200;
-				body = fs.readFileSync(file);
-				type = file.endsWith(".js") ? "text/javascript; charset=utf-8" : file.endsWith(".map") ? "application/json" : "text/plain";
-			}
-		}
-		requests.push({ path: url.pathname, status });
-		res.writeHead(status, { "content-type": type, "cache-control": "no-store" });
-		res.end(body);
-	});
-	await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-	const address = `http://127.0.0.1:${server.address().port}/`;
+	const server = await serveStatic({ pages: { "/": page, "/index.html": page }, folders: { [base]: path.join(installed, "dist") } });
+	const requests = server.requests;
+	const address = `${server.origin}/`;
 	step(`serving the page and ${base} at ${address}`);
 
-	// 6. headless Chrome, a profile of its own
+	// 6. headless Chrome, one-shot, in a folder of its own
 	try {
-		const chrome = process.env.CHROME || "google-chrome";
-		const profile = path.join(scratch, "chrome-profile");
-		const args = ["--headless=new", "--no-sandbox", "--disable-gpu", "--no-first-run", "--no-default-browser-check", "--disable-extensions", `--user-data-dir=${profile}`, "--virtual-time-budget=10000", "--dump-dom", address];
-		const { stdout: dom } = await run(chrome, args, { timeout: 90000, maxBuffer: 1 << 24 });
+		const chrome = findChrome();
+		if (chrome === null) fail("no Chrome: set CHROME, or put google-chrome on PATH");
+		const dom = await dumpDom(address, { virtualTimeBudgetMs: 10000, timeoutMs: 90000 });
 		const result = dom.match(/<pre id="result">([^<]*)<\/pre>/)?.[1] ?? "";
 		const missed = requests.filter((r) => r.status !== 200 && r.path !== "/favicon.ico");
 		if (missed.length) fail(`requests not answered 200: ${missed.map((r) => `${r.path} ${r.status}`).join(", ")}`);
@@ -183,7 +164,7 @@ ${exercise.toString()}
 		step(`${version.trim()} loaded ${specifiers.join(" and ")} through the import map: ${requests.length} requests, every one asked of the page answered 200`);
 		step(`the page says: ${result}`);
 	} finally {
-		server.close();
+		await server.close();
 	}
 	console.log("consumer-test: PASS");
 }
@@ -195,7 +176,4 @@ try {
 		console.log(`consumer-test: FAIL -- ${e.message}`);
 		process.exitCode = 1;
 	}
-} finally {
-	if (!keep) fs.rmSync(scratch, { recursive: true, force: true });
-	else console.log(`  kept ${scratch}`);
 }

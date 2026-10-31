@@ -6,11 +6,12 @@
 // own line and no other line may, so no expected error passes for a reason other than its own.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import os from "node:os";
+import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+
+import { scratchFolder } from "@apnex/test-harness";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const tsc = path.join(root, "node_modules", ".bin", "tsc");
@@ -45,7 +46,7 @@ for (const [label, extra] of MODES) {
 			expected.push(index + 2);
 			return "";
 		});
-		const dir = mkdtempSync(path.join(os.tmpdir(), "input-binding-types-"));
+		const dir = scratchFolder("input-binding-types-");
 		try {
 			mkdirSync(path.join(dir, "node_modules", "@apnex"), { recursive: true });
 			symlinkSync(root, path.join(dir, "node_modules", "@apnex", "input-binding"), "dir");

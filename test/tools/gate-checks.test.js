@@ -6,10 +6,11 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+
+import { scratchFolder } from "@apnex/test-harness";
 
 import { candidateWords, findVocabulary, readVocabulary, splitWords } from "../../tools/check-vocabulary.mjs";
 import { findClockAndChance } from "../../tools/check-clock-and-chance.mjs";
@@ -18,7 +19,7 @@ import { ALLOWED_GLOBALS, findRuntimeUses, freeGlobalReferences, parseModule } f
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const run = (tool, ...args) => spawnSync(process.execPath, [path.join(root, "tools", tool), ...args], { encoding: "utf8" });
 const scratch = (files) => {
-	const dir = fs.mkdtempSync(path.join(os.tmpdir(), "input-binding-check-"));
+	const dir = scratchFolder("input-binding-check-");
 	for (const [name, text] of Object.entries(files)) fs.writeFileSync(path.join(dir, name), text);
 	return dir;
 };
@@ -162,7 +163,7 @@ test("I14: the runtime check allows only the globals the build uses -- exactly t
 
 test("I14: a platform global planted in a copy of the built files is found, and the copy otherwise passes", () => {
 	for (const [plant, name] of [["export const planted = () => new MessageChannel();\n", "MessageChannel"], ["export const planted = () => Atomics.wait;\n", "Atomics"], ["export const planted = () => typeof Worker;\n", "Worker"]]) {
-		const dir = fs.mkdtempSync(path.join(os.tmpdir(), "input-binding-dist-"));
+		const dir = scratchFolder("input-binding-dist-");
 		try {
 			fs.cpSync(path.join(root, "dist"), dir, { recursive: true });
 			assert.equal(run("check-runtime.mjs", dir).status, 0, "the unplanted copy passes");

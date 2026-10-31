@@ -4,10 +4,11 @@
 // binary64 filter cannot decide them, which mutations of the fallback each fail.
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
+
+import { scratchFolder } from "@apnex/test-harness";
 
 import { openGestureSession } from "@apnex/input-binding";
 import { nextDown, nextUp, randomTools, seededRandom } from "../support/doubles.js";
@@ -171,7 +172,7 @@ async function mutant(replacements, dir) {
 }
 
 test("I9: mutations of the fallback's comparison, sign, subnormal decoding and shift each fail the built cases", async () => {
-	const dir = fs.mkdtempSync(path.join(os.tmpdir(), "input-binding-mutant-"));
+	const dir = scratchFolder("input-binding-mutant-");
 	try {
 		const forced = forcedCases();
 		const failures = async (replacements) => {
