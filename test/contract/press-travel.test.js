@@ -8,7 +8,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { scratchFolder } from "@apnex/test-harness";
+import { scratchFolder } from "@apnex/clean-runner";
 
 import { openGestureSession } from "@apnex/input-binding";
 import { nextDown, nextUp, randomTools, seededRandom } from "../support/doubles.js";
