@@ -226,3 +226,90 @@ The runner is not given `--test-force-exit`, which `test-harness`'s README recom
 **Ruling.**\
 The development dependency `D4` names is replaced by two, each pinned to its release file by its URL and, in the lockfile, by its hash: `@apnex/clean-runner` `0.2.0`, for the runner -- `clean-runner run` and `clean-runner exec`, and `scratchFolder` -- and `@apnex/headless-chromium` `0.1.0`, for `dumpDom` and `serveStatic`; `files` is unchanged, so neither is packed.\
 The calls are `D4`'s, each now from the component that holds it, and the runner is still given no `--test-force-exit`.
+
+---
+
+## D6 - The contract of record for 0.3.0 is a threshold measured on screen
+
+**Ruled by:** the director, 2026-11-01 (draw's `H26-23`: its design of record for pan and zoom ratified as it stands).\
+**Affects:** `CONTRACT.md`, `README.md`, `src/session-declaration.ts`, `src/gesture-session.ts`, `src/types.ts`, `test/`, `tools/consumer-test.mjs`, and `package.json` and its lockfile; a minor release, `0.3.0`.
+
+**Ruling.**\
+The contract of record for `0.3.0` is the `input-binding` paragraph of section 3.2 of draw's `dev/design/components/PAN-ZOOM.md`, revision 10, with its decision PZ17, its section 5.1's move 3 and the two rows of its appendix A for that move.\
+A session's declaration gains an optional `measure`, `'at'` or `'screen'`, and a session declared with `'screen'` measures every point on the screen -- a press's origin, `state.press.at`, a move's point and a restart's `from` -- reading each pointer fact's `screen` in the place of its `at`, and never its `at`.\
+`CONTRACT.md` carries it as IB16, with IB1, IB2, IB9, IB10, IB12, I8, the vocabulary and two capability rows widened, and three invariants added, I20 to I22.\
+A declaration without `measure` is `0.2.0`'s in every rule, the move's guard, held by I22 against the released `0.2.0`; what `0.2.0` refused, `unknown-property` at `/measure`, is now opened, so the release is a minor one.
+
+**Choices made at build.**\
+Where the paragraph was silent, the build made these; each that a test can hold is held by one:
+- `measure` is judged at a step of its own, IB9 step 6, so steps 1 to 5 keep their numbers; problems are ordered by pointer whatever step finds them, so the step's number changes no answer.
+- `measure`'s descriptor is read third among the declaration's, after `threshold`'s and `gestures'`, before `gestures`' value, as IB2 rule 8 reads a declaration, descriptors before values; its value is in its descriptor, so nothing more of it is read.
+- `measure` present as `undefined` is `invalid-value`, as IB2 rule 3 makes every property present as `undefined` of no form; a `String` object, of this realm or another, is no string.
+- `session.declaration` holds `measure` exactly when the declaration names one, `'at'` among them, after `threshold` and `gestures`; so `'at'` and its absence differ there alone.
+- Under `'screen'`, a fact without `screen` as an own data property holding a point throws the function's own `TypeError`, as a fact without `at` does under `0.2.0`; its `at` is never read, so it may be absent, and an accessor `at` is never called; `resolvePress` reads `screen` as `pointerDown` does; under `'at'` or none, `screen` is never read.
+- `GestureSessionDeclaration` gains `measure?: 'at' | 'screen'`, and `openGestureSession` is typed by it; `PointerDownFact` and `PointerMoveFact` become type aliases over a fact holding `at` or `screen` or both, so a fact without `at` type-checks for a session measured on screen, and an interface can no longer extend them, which no consumer does: `input-tester` vendors the declarations and extends neither, and draw is JavaScript.\
+  The types do not tie a fact's point to the session's measure: a session measured on screen handed a fact holding `at` alone refuses it as it runs, as IB16 says.
+- The tests of the measure are in `test/contract/screen-measure.test.js`, beside the capability files: the measure is no capability of its own, `declared-gesture-session` and `press-travel` being widened, so the capability list is unchanged.
+- I22 runs against the released `0.2.0` as a development dependency named `input-binding-0.2.0`, pinned to its release file by its URL and, in the lockfile, by its integrity, whose SHA-512 is the one the release attaches (it begins `bf8ea9fc6ab5`); each built file is pinned again in the test by its SHA-256 in base64, so no hexadecimal identifier is written.\
+  No copy of it is kept in the repository, draw's `H26-19` keeping no legacy beside its successor; `files` is unchanged, so it is not packed, and a consumer installing with `--omit=dev` never fetches it; the gate's and the release's `npm ci` fetch it as they fetch the other two development dependencies.\
+  I19's `0.1.0` stays where D3 put it, in `test/fixtures/`, which this release does not change.
+- I22 compares with nothing set aside, `0.3.0` adding nothing to a session declared without `measure`: problems, declarations and their frozenness, states, outcomes, refusals, identities and every argument's reads, over a table of declarations, IB11's decided cases, the I13 corpus and I10's generator with two pointers and the keys.
+- I21 holds a scale not 1 and a panned origin as a view `screen = scale * at + pan`, at scales 0.5, 2 and 4, a click, a drag returning to its start and a 5-pixel drop decided under both measures, and a restart from a point under both; over I10's generator a session measured on screen is handed the generator's points as `screen` and others as `at`, and answers as one measuring `at` handed them as `at`.
+- The consumer test's exercise gains a session measured on screen, in Node and in headless Chrome alike: 40 units of `at` that are 4 screen pixels stay a click, and a travel of 4.24 screen pixels back to the press's `at` is a drop.
+- `README.md`'s session section gains one sentence on `measure`.
+- The release workflow holds no version of its own -- it requires the tag to be `v` and `package.json`'s version, within `0.x` -- and the gate's workflow pins none, so a `v0.3.0` tag builds with both unchanged.
+
+**The `0.2.0` tests changed.**\
+Every pin a `0.2.0` test held that this release moves:
+- `test/contract/contract-coverage.test.js`: the rules counted to IB16 and the invariants to I22, in its name and its two bounds.
+- `test/contract/public-surface.test.js`: the version, `0.3.0`; the development dependencies' test pins `input-binding-0.2.0` and the list of all four, its name widened.
+- `test/types/context-consumer.mts`: one expected error's comment, "pointerMove needs a fact holding at", gains "or screen", its directive and line unchanged; a session measured on screen is added, with three expected errors.
+
+The capability list, its count, the export map, the session's keys, the runtime check's allowed globals and every other test are unchanged.
+
+**Errata to raise against the design** (`PAN-ZOOM.md`):
+1. Section 3.2's paragraph names "a pointer's down, move and up" among the operations that read a fact's `at`; `0.2.0`'s `pointerUp` reads no point -- IB10: "never its `at`" -- and the same paragraph holds a declaration without `measure` to `0.2.0` in every rule, so `pointerUp` reads neither `at` nor `screen` under either measure, as built and held by I21. The paragraph should read "a pointer's down and move, and `resolvePress`'s fact".
+
+**Mutants.**\
+Each new rule's tests were run against mutants of it, each made as one exact replacement in a copy of the working tree, built, and run against every test of the contract, compatibility, corpus and gate-check folders, by a driver outside the repository; every one of the 27 was killed:
+
+| Rule | Mutant | Tests failing, one of them |
+|---|---|---|
+| IB9 | `measure` not admitted, an unknown property as under `0.2.0` | 13, I20's measure values |
+| IB9 | `measure` required | 86, I22 over the declarations |
+| IB2, IB9 | `measure`'s descriptor read before `gestures`' | 2, I20's reading order |
+| IB9 | any string a measure | 2, I20's measure values |
+| IB9 | `measure` present as `undefined`, or an accessor, taken as absent | 3, I20's measure values |
+| IB9 | an accessor `measure`'s getter run | 1, I20's reading order |
+| IB9 | `'at'` refused | 7, I20's declaration |
+| IB9 | the problem at `""`, not `/measure` | 4, I20's measure values |
+| IB9 | `session.declaration` always holding `measure`, `'at'` when none was given | 5, I22's development dependency |
+| IB9 | `session.declaration` dropping a measure given | 2, I20's declaration |
+| IB9 | `session.declaration`'s `measure` before `threshold` | 2, I20's declaration |
+| IB16 | `screen` never measured | 8, I21's reads; and the consumer test, its Node step |
+| IB16 | `'at'` measured on the screen as `'screen'` is | 4, I21 over I10's generator |
+| IB16 | `pointerDown` reading `at` under `'screen'` | 7, I21's reads |
+| IB16 | `pointerMove` reading `at` under `'screen'` | 7, I21's restart |
+| IB16 | `resolvePress` reading `at` under `'screen'` | 3, I21's reads |
+| IB16, I8 | `at`'s descriptor read beside the point measured | 7, I22's reads |
+| IB16 | a fact without `screen` measured on its `at` | 1, I21's refusals |
+| IB16 | the press's origin read from `at` when present, its moves from `screen` | 7, I21's scale and origin |
+| IB13 | the declaration's type without `measure` | 4, the public types |
+| IB13 | a pointer fact's type requiring `at` | 4, the public types |
+| IB16 | `CONTRACT.md` without IB16's heading | 1, the contract's rules |
+| I22 | `CONTRACT.md` without I22's row | 1, the contract's rules |
+| `0.3.0` | the version left at `0.2.0` | 1, the package's pins |
+| I22 | the release compared replaced by this build | 1, I22 over the declarations |
+| I22 | a pin of the release altered | 1, I22's development dependency |
+| I22 | `0.2.0`'s rule changed, a travel of exactly the threshold a drop | 18, I22 over the I13 corpus |
+
+**The built size of each half.**\
+Measured by `tools/measure-halves.mjs` over `dist/` as built at `0.3.0`; the table and the shared files did not change:
+
+| Half | Files | Bytes | Gzip | No comments | Gzip |
+|---|---|---|---|---|---|
+| the session | `session-declaration.js`, `gesture-session.js`, `travel-beyond.js` | 32,724 | 8,992 | 22,715 | 5,375 |
+
+The session grew by 1,564 bytes as shipped, 631 once comments are removed.
+
+**Released** only by this repository's CI on the tag `v0.3.0`, pushed once the move is verified.
