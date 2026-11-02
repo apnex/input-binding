@@ -75,6 +75,8 @@ Open a session from the threshold a press may travel and still be a click, in th
 const { session } = openGestureSession({ threshold: 4, gestures: [{ name: "press", engaged: false, button: 0 }, { name: "drag", engaged: true, button: 0 }] });
 ```
 
+Declare `measure: 'screen'` beside them and the session measures each pointer fact's `screen` in the place of its `at`, which it then never reads: the threshold is in screen pixels, and every point it measures -- the press's origin, `state.press.at`, a restart's `from` -- is a screen point, so a press is a click or a drag by how far it travelled on the screen, whatever the scale your view draws at (`CONTRACT.md`, IB16).
+
 `session.state` is `{ press, gesture, keys }`: the press `{ at, beyond, unmatched, button, pointer }` or `null`; the live gesture `{ name, row, engaged }` or `null`; and the codes of the keys held, in the order first pressed.\
 It is the very same value until an operation changes it.
 

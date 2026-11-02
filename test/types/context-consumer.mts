@@ -76,7 +76,7 @@ if (session.ok) {
 	// @ts-expect-error -- the trigger is null when the release was another pointer's
 	const always: "click" | "drop" = up.trigger;
 	const other: boolean = up.otherPointer;
-	// @ts-expect-error -- pointerMove needs a fact holding at
+	// @ts-expect-error -- pointerMove needs a fact holding at, or screen
 	session.session.pointerMove({ button: 0 });
 	void [taken, trigger, always, other];
 
@@ -123,5 +123,21 @@ if (session.ok) {
 	const cancelPhase: "cancel" = resolved.phase;
 	void [button, pointer, keys, keyFact, held, untracked, released, run, phase, nothing, cancelPhase];
 }
+
+// A session measured on screen (IB16): its declaration names the measure, and its facts hold screen, at beside it or not.
+const onScreen = openGestureSession({ threshold: 4, gestures: [], measure: "screen" });
+if (onScreen.ok) {
+	const measure: "at" | "screen" | undefined = onScreen.session.declaration.measure;
+	onScreen.session.pointerDown({ screen: { x: 1, y: 2 }, button: 0 });
+	onScreen.session.pointerMove({ screen: { x: 3, y: 4 }, at: { x: 0.5, y: 1 }, pointerId: null });
+	onScreen.session.resolvePress({ screen: { x: 1, y: 2 }, button: 0 }, { match: () => null });
+	// @ts-expect-error -- a pointer fact holds a point, at or screen
+	onScreen.session.pointerDown({ button: 0 });
+	// @ts-expect-error -- a fact's screen is a point
+	onScreen.session.pointerMove({ screen: 3 });
+	void measure;
+}
+// @ts-expect-error -- the measure is 'at' or 'screen'
+openGestureSession({ threshold: 4, gestures: [], measure: "pixels" });
 
 void [a1, a2, a3, a4, a5];

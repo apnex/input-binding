@@ -1,23 +1,33 @@
 /**
  * A session's declaration, checked (CONTRACT.md, IB9): every problem it has, each at its pointer, or the
- * threshold and the gestures a session is opened from.
+ * threshold, the gestures and the measure a session is opened from.
  *
  * Read whole, value by value, in IB2's order: the declaration; its threshold; its gestures, each
- * gesture's name, engaged and button. Each value is judged at its own pointer before anything beneath it
- * is read (src/reflection.ts), so a gestures descriptor whose trap rewrites the threshold finds it read.
+ * gesture's name, engaged and button; its measure, when it holds one (IB16). Each value is judged at its
+ * own pointer before anything beneath it is read (src/reflection.ts), so a gestures descriptor whose trap
+ * rewrites the threshold finds it read.
  */
 import { childPointer, ProblemList } from "./declaration-problems.js";
 import { arrayProperty, dataValue, judgeRecord } from "./reflection.js";
 import type { GestureDeclaration } from "./types.js";
 
-/** A declaration with no problem: the threshold and the gestures, each number written with -0 as 0. */
+/**
+ * A declaration with no problem: the threshold and the gestures, each number written with -0 as 0, and the
+ * measure, or null when the declaration holds none.
+ */
 export interface CheckedSessionDeclaration {
 	readonly ok: true;
 	readonly threshold: number;
 	readonly gestures: readonly GestureDeclaration[];
+	readonly measure: Measure | null;
 }
 
-const DECLARATION_FORM = ["threshold", "gestures"];
+/** IB16: the points a session measures -- each fact's `at`, or its `screen`. */
+export type Measure = "at" | "screen";
+
+const DECLARATION_FORM = ["threshold", "gestures", "measure"];
+/** The properties a declaration must hold; measure is optional (IB9 step 2). */
+const REQUIRED_FORM = ["threshold", "gestures"];
 const GESTURE_FORM = ["name", "engaged", "button"];
 
 /** IB9: every problem a session's declaration has, or what a session is opened from. */
@@ -31,7 +41,7 @@ export function checkSessionDeclaration(declaration: unknown): CheckedSessionDec
 		return { ok: false, problems };
 	}
 	for (const name of root.unknown) problems.add(childPointer("", name), "unknown-property");
-	for (const name of DECLARATION_FORM) if (!root.properties.has(name)) problems.add(childPointer("", name), "missing-property");
+	for (const name of REQUIRED_FORM) if (!root.properties.has(name)) problems.add(childPointer("", name), "missing-property");
 
 	// step 3
 	const thresholdProperty = root.properties.get("threshold");
@@ -76,6 +86,16 @@ export function checkSessionDeclaration(declaration: unknown): CheckedSessionDec
 		else seen.add(name);
 	}
 
+	// step 6: measure, after threshold and gestures, when present a data property holding 'at' or 'screen';
+	// an accessor's value reads undefined, so it is refused with every other value
+	let measure: Measure | null = null;
+	const measureProperty = root.properties.get("measure");
+	if (measureProperty !== undefined) {
+		const value = dataValue(measureProperty);
+		if (value === "at" || value === "screen") measure = value;
+		else problems.add("/measure", "invalid-value");
+	}
+
 	if (problems.size > 0) return { ok: false, problems };
-	return { ok: true, threshold: (threshold as number) + 0, gestures };
+	return { ok: true, threshold: (threshold as number) + 0, gestures, measure };
 }

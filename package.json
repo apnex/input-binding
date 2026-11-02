@@ -1,6 +1,6 @@
 {
   "name": "@apnex/input-binding",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Decide what each input means in its context: the one declared row it matches, and the phase it makes due for the gesture in progress.",
   "license": "MIT",
   "author": "apnex",
@@ -35,6 +35,7 @@
   "devDependencies": {
     "@apnex/clean-runner": "https://github.com/apnex/clean-runner/releases/download/v0.2.0/apnex-clean-runner-0.2.0.tgz",
     "@apnex/headless-chromium": "https://github.com/apnex/headless-chromium/releases/download/v0.1.0/apnex-headless-chromium-0.1.0.tgz",
+    "input-binding-0.2.0": "https://github.com/apnex/input-binding/releases/download/v0.2.0/apnex-input-binding-0.2.0.tgz",
     "typescript": "5.9.3"
   }
 }

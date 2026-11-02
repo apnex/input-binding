@@ -30,10 +30,10 @@ test("CONTRACT.md carries the six headings of a component entry, in order", () =
 	}
 });
 
-test("CONTRACT.md states every rule, IB1 to IB15, and every invariant, I1 to I19", () => {
+test("CONTRACT.md states every rule, IB1 to IB16, and every invariant, I1 to I22", () => {
 	const text = fs.readFileSync(path.join(here, "..", "..", "CONTRACT.md"), "utf8");
-	for (let n = 1; n <= 15; n++) assert.match(text, new RegExp(`\\*\\*IB${n} -- `), `IB${n}`);
-	for (let n = 1; n <= 19; n++) assert.match(text, new RegExp(`^\\| I${n} \\|`, "m"), `I${n}`);
+	for (let n = 1; n <= 16; n++) assert.match(text, new RegExp(`\\*\\*IB${n} -- `), `IB${n}`);
+	for (let n = 1; n <= 22; n++) assert.match(text, new RegExp(`^\\| I${n} \\|`, "m"), `I${n}`);
 });
 
 test("CONTRACT.md names no draw file and cites no design or ruling of draw's but its one provenance line in Reference", () => {

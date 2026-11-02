@@ -147,11 +147,18 @@ export interface GestureDeclaration {
 	readonly button: number | null;
 }
 
-/** A session's declaration: the threshold, in the units of the facts' `at`, and the gestures (IB9). */
+/**
+ * A session's declaration: the threshold, in the units of the points the session measures, the gestures (IB9),
+ * and optionally the measure -- 'at', the facts' `at`, as when it is absent, or 'screen', their `screen` (IB16).
+ */
 export interface GestureSessionDeclaration {
 	readonly threshold: number;
 	readonly gestures: readonly GestureDeclaration[];
+	readonly measure?: "at" | "screen";
 }
+
+/** A pointer fact's point: its `at`, which a session measures by default, or its `screen`, which one declared with `measure: 'screen'` measures in its place (IB1, IB16). */
+export type FactPoint = { readonly at: Point; readonly screen?: Point } | { readonly screen: Point; readonly at?: Point };
 
 /**
  * A pointer button held: where it went down, whether it has travelled beyond the threshold, whether it is
@@ -218,20 +225,19 @@ export interface BecomeGestureOutcome extends GestureOutcome {
 }
 
 /**
- * The fact pointerDown reads: its `at` and its `button`, own data properties, and its `pointerId`, absent
- * or an own data property holding null or a safe integer; every other property is unread (IB1).
+ * The fact pointerDown reads: its `at` -- or under `measure: 'screen'` its `screen` -- and its `button`, own data
+ * properties, and its `pointerId`, absent or an own data property holding null or a safe integer; every other
+ * property is unread (IB1, IB16).
  */
-export interface PointerDownFact {
-	readonly at: Point;
+export type PointerDownFact = FactPoint & {
 	readonly button: number;
 	readonly pointerId?: number | null;
-}
+};
 
-/** The fact pointerMove reads: its `at`, an own data property, and its `pointerId`, as pointerDown reads it. */
-export interface PointerMoveFact {
-	readonly at: Point;
+/** The fact pointerMove reads: its `at` -- or under `measure: 'screen'` its `screen` -- an own data property, and its `pointerId`, as pointerDown reads it. */
+export type PointerMoveFact = FactPoint & {
 	readonly pointerId?: number | null;
-}
+};
 
 /** The fact pointerUp reads: its `button`, an own data property, and its `pointerId`, as pointerDown reads it. */
 export interface PointerUpFact {

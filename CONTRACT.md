@@ -11,7 +11,7 @@ related: [C0, A3]
 
 # input-binding
 
-The contract of record for input-binding at `0.2.0`: what a consumer can depend on, and every rule (`docs/DECISIONS.md`, `D2` and `D3`).\
+The contract of record for input-binding at `0.3.0`: what a consumer can depend on, and every rule (`docs/DECISIONS.md`, `D2`, `D3` and `D6`).\
 It also carries the fields of a mission-kit registry entry, and that entry is generated from this file when the component is filed, never written as a second copy.\
 The registry id is unminted on purpose; one is minted only when the entry is admitted to the registry.
 
@@ -37,7 +37,7 @@ These are the only nouns input-binding's source uses for what it handles.
 | Word | Meaning |
 |---|---|
 | input | something a person did -- a key pressed, a pointer moved -- as the application hands it over |
-| fact | the value an application hands binding for one input; binding reads only its `at`, its `button` and its `pointerId`, and of a key fact its `code` (IB1) |
+| fact | the value an application hands binding for one input; binding reads only its `at` -- or, in a session measured on screen, its `screen` in the place of its `at` -- its `button` and its `pointerId`, and of a key fact its `code` (IB1, IB16) |
 | point | a non-null value whose `typeof` is `'object'`, so not a function, of any prototype, with finite number properties `x` and `y` |
 | button | an integer naming a pointer's button, compared only for equality |
 | pointer | one contact or cursor the platform tracks, named by a fact's `pointerId`, compared only for equality; a fact that names none is of the pointer `null` |
@@ -58,7 +58,9 @@ These are the only nouns input-binding's source uses for what it handles.
 | session | the state of one input surface's presses, gestures and held keys between calls, opened and owned by the application |
 | press | a pointer button held: where it went down, whether it has travelled beyond the threshold, whether it is still unmatched -- not yet handed to `pressMatched`, which a press no row matches never is -- the button that began it, and the pointer that holds it |
 | taken | a press the live gesture declares as its own, which then means nothing more |
-| threshold | the distance a press may travel and still be a click, in the units of the facts' `at` |
+| threshold | the distance a press may travel and still be a click, in the units of the points the session measures |
+| measure | which point of a pointer fact a session measures: its `at`, as when a declaration names none, or its `screen` (IB16) |
+| screen | a pointer fact's point on the screen, which a session measured on screen reads in the place of its `at` (IB16) |
 | trigger | what a release is: `click` when its press never went beyond the threshold, `drop` otherwise |
 | gesture | a named, declared kind of continuous interaction an application runs |
 | live | the one gesture started and not yet ended |
@@ -81,8 +83,8 @@ The trait column names any trait a system takes on by using the capability.
 | `one-binding-match` | provides | none | The one row an input means in its context under a guard state, or none when none or several do -- never chosen by position -- and whether the input is claimed (IB5, IB7). | none |
 | `binding-match-trace` | provides | none | For every row, in table order, how far it matched an input: refused by a guard, unbound, unmet, or a hit (IB6). | none |
 | `binding-overlaps` | provides | none | Every combination, among the facts, contexts and guard states given, in which two or more rows hit (IB8). | none |
-| `declared-gesture-session` | provides | none | A session opened from a threshold and the gestures an application declares, or refused with every problem (IB9). | stateful |
-| `press-travel` | provides | none | Whether a press has travelled beyond the threshold, decided exactly from its moves, and whether its release is a click or a drop (IB10). | stateful |
+| `declared-gesture-session` | provides | none | A session opened from a threshold, the gestures and optionally the measure an application declares, or refused with every problem (IB9). | stateful |
+| `press-travel` | provides | none | Whether a press has travelled beyond the threshold, decided exactly from its moves -- measured on the facts' `at`, or on their `screen` -- and whether its release is a click or a drop (IB10, IB16). | stateful |
 | `live-gesture` | provides | none | The one live gesture, and which phase each input makes due for it -- start, update, commit or cancel -- by the declared gestures and the inputs alone, a chord's last release committing the gesture its button began and another pointer's move or release changing nothing, with the phases the application requests checked against the same rules (IB11, IB12). | stateful |
 | `held-keys` | provides | none | The codes of the keys held, in the order first pressed, kept from each key-down, key-up and loss of focus, a key whose physical identity is unreported answered untracked, never refused (IB14). | stateful |
 | `press-resolution` | provides | none | A press resolved in one call -- made, matched by the application's own code, a live gesture cancelled and the start the match opens -- the application's code running between the steps and inside the cancel (IB15). | stateful |
@@ -109,8 +111,9 @@ Tested by: `test/contract/returned-values-and-errors.test.js`, and each capabili
 
 **IB1 -- The fact.**\
 A fact is any value the application hands binding for one input.\
-Binding reads four properties of a fact, and only of a fact handed to a session's operation:
-- `at`, of a fact handed to `pointerDown`, `pointerMove` or `resolvePress`: a point, in the units the session's threshold is stated in;
+Binding reads these properties of a fact, and only of a fact handed to a session's operation:
+- `at`, of a fact handed to `pointerDown`, `pointerMove` or `resolvePress` of a session that measures `at` -- one whose declaration names no `measure`, or `'at'`: a point, in the units the session's threshold is stated in;
+- `screen`, of a fact handed to those three operations of a session declared with `measure: 'screen'`, in the place of `at`, which that session never reads: a point, in screen pixels, the units of its threshold (IB16);
 - `button`, of a fact handed to `pointerDown`, `pointerUp` or `resolvePress`: a safe integer, compared only for equality with a gesture's declared button and with the press's (IB11);
 - `pointerId`, of a fact handed to `pointerDown`, `pointerMove`, `pointerUp` or `resolvePress`: read by its descriptor alone -- its own keys are not read -- so a descriptor that reads `undefined` is absent and means `null`, and otherwise it must be a data property holding `null` or a safe integer, the pointer the fact is of, compared only for equality with the press's (IB10, IB11);
 - `code`, of a fact handed to `keyDown` or `keyUp`: a string or `null`, the physical key the platform names, `''` or `null` when it names none (IB14).
@@ -118,7 +121,7 @@ Binding reads four properties of a fact, and only of a fact handed to a session'
 There the fact must be a non-null value whose `typeof` is `'object'`, so not a function, of any prototype, holding each property the operation reads, `pointerId` aside, as an own data property, and is read as IB2 says; a malformed fact throws the function's own `TypeError`.\
 Every other fact, every fact handed to a table, and every other property of any fact, binding passes unread and unchanged to the predicates the application declared, and never keeps, copies, freezes or writes.\
 So the shape of a fact -- its kind, its key, its modifiers, what lies under it -- is the application's and its rows', never binding's: a table may name the application's own outcomes as facts, since a fact is any value the application hands.\
-A listener such as `input-capture` makes facts of this shape, `at`, `button`, `pointerId` and `code` among their fields, and binding gives one thing back for it to act on, `claimed` (IB7).\
+A listener such as `input-capture` makes facts of this shape, `at`, `screen`, `button`, `pointerId` and `code` among their fields, and binding gives one thing back for it to act on, `claimed` (IB7).\
 Tested by: `test/contract/argument-reading.test.js` (I8).
 
 **IB2 -- How arguments are read.**\
@@ -127,20 +130,20 @@ These rules, `snap-grid`'s where they fit, decide every reading the contract mak
 2. Every argument binding reads but a point -- a declaration, a guard state, a match handed to `pressMatched`, the answer of `resolvePress`'s `match`, a gesture argument, `resolvePress`'s handlers, and a fact handed to a session's operation -- is read through its own data properties, by descriptor, so no getter of it is called: an own accessor property is present and of no form, an inherited property is absent, and a symbol-named property is ignored.
 3. Present means an own property, whatever its value; a property present with the value `undefined` is present, and of no form, since no form admits `undefined`; an optional argument -- the `guards` of `traceInput` and `matchInput`, a predicate's context -- omitted and one given as `undefined` are the same.
 4. An array is of its form only when it is dense -- every index from 0 to `length - 1` an own data property -- and holds no own string-named property but those indices and `length`.
-5. A point -- a fact's `at`, a gesture argument's `from` -- and a fact handed to a session's operation are each a non-null value whose `typeof` is `'object'`, so a function is neither, of any prototype; a point's `x` and `y` are read once each through ordinary property access, `x` first, so a point whose `x` and `y` are getters on its prototype answers -- a browser's `DOMPoint` is one, as a point a page converts from the screen with `matrixTransform` is -- and both are read before either is checked, as `snap-grid` reads a point.
+5. A point -- a fact's `at` or `screen`, a gesture argument's `from` -- and a fact handed to a session's operation are each a non-null value whose `typeof` is `'object'`, so a function is neither, of any prototype; a point's `x` and `y` are read once each through ordinary property access, `x` first, so a point whose `x` and `y` are getters on its prototype answers -- a browser's `DOMPoint` is one, as a point a page converts from the screen with `matrixTransform` is -- and both are read before either is checked, as `snap-grid` reads a point.
 6. Reflection that throws -- `Array.isArray`, or reading a prototype, own keys, a descriptor or a point's coordinate, on a revoked or trapping `Proxy` or through a throwing getter -- makes that value of no form: in a declaration it is refused at its pointer (IB3); in any other argument it is malformed.
-7. A property binding does not own -- a row's payload, a match's `owner` and `row`, a fact's every property but `at`, `button`, `pointerId` and `code` -- is never read, so its getter never runs, whatever its form, and it may be an accessor or hold `undefined`.
+7. A property binding does not own -- a row's payload, a match's `owner` and `row`, a fact's every property but the four its session reads of it, `at` or `screen` by its measure, `button`, `pointerId` and `code` -- is never read, so its getter never runs, whatever its form, and it may be an accessor or hold `undefined`.
 8. A declaration is read whole, value by value, in the table's order: of each value, first all that judges it at its own pointer -- its prototype, for an array `Array.isArray` first, then its own keys, then the descriptor of each property its form names that its own keys hold, in the table's order, or for an array the descriptor of its `length` and then of each index in order -- and only then, unless it is refused at its pointer, the values those descriptors held, in the same order, each read whole before the next; a property its form does not name is known by its key alone, nothing beneath a value refused at its pointer is read, nothing is read twice, and every problem is reported (IB3, IB9); every other function reads its arguments once each, in the table's order, an array as a declaration's is read, checking each read as it is made -- a point's `x` and `y` together -- and throws at the first that is malformed, reading nothing after it.
 9. A point's getter and a `Proxy`'s trap -- `getPrototypeOf`, `ownKeys`, `getOwnPropertyDescriptor`, `get` and the rest -- are the application's code, and may call the session: what that call does takes effect at once; the operation reading the argument reads the session's state only after all its arguments are read and checked, so it sees what that code left; an operation that throws while reading changes nothing itself, and undoes nothing that code did, whether the code returned or threw; and binding cannot tell a `Proxy` from its target, no means to do so being common to every runtime, so it can neither refuse one nor keep its traps from running, and it calls a getter only on a point, where a browser's `DOMPoint` needs one.
 
 | Function | What it reads, in order |
 |---|---|
 | `composeBindingTable` | the declaration; its `guards`, each guard's `state`, `flag`, `default` and `refuses`; its `claim`'s `flag` and `default`; its `opens`'s `field`; its `tenants`, each tenant's `owner` and `rows`, and each row's `id`, `on` and `when`, then, when step 9 runs, each guard's flag in order, the claim's flag and the `opens` field |
-| `openGestureSession` | the declaration; its `threshold`; its `gestures`, each gesture's `name`, `engaged` and `button` |
+| `openGestureSession` | the declaration; its `threshold`; its `gestures`, each gesture's `name`, `engaged` and `button`; its `measure` |
 | `matchInput`, `traceInput` | the guard state, if given: its prototype, its own keys, then each own string-named property's descriptor in the order `Reflect.ownKeys` gives them; the fact and the context are never read |
 | `findOverlaps` | `facts`, then `contexts`, then `guardStates`, each array as rule 8 reads one -- `Array.isArray`, its prototype, its own keys, its `length`'s descriptor and its elements' in index order; then each element of `guardStates` in order, as a guard state |
-| `pointerDown` | the fact; its `at`; that point's `x` and `y`; the fact's `button`; its `pointerId` |
-| `pointerMove` | the fact; its `at`; that point's `x` and `y`; its `pointerId` |
+| `pointerDown` | the fact; its `at`, or its `screen` in a session measured on screen (IB16); that point's `x` and `y`; the fact's `button`; its `pointerId` |
+| `pointerMove` | the fact; its `at`, or its `screen` as `pointerDown` reads it; that point's `x` and `y`; its `pointerId` |
 | `pointerUp` | the fact; its `button`; its `pointerId` |
 | `pressMatched` | the match's prototype; its `id`; its `opens` |
 | `startGesture`, `becomeGesture` | the argument's prototype and own keys; its `gesture`, then its `row` for `startGesture`, then its `from`, each by descriptor; then that point's `x` and `y` |
@@ -235,34 +238,38 @@ Tested by: `test/contract/binding-overlaps.test.js` (I7).
 
 **IB9 -- A session, opened or refused.**\
 `openGestureSession(declaration)` returns `{ ok: true, session }` or `{ ok: false, problems }`, problems and their reading as IB3 states them.\
-A declaration is a plain object of exactly `threshold` and `gestures`:
-- `threshold`, a finite number at least 0: the distance a press may travel and still be a click, in the units of the facts' `at`;
-- `gestures`, an array of plain objects of exactly `name`, a non-empty string, unique among them; `engaged`, a boolean; and `button`, a safe integer or `null` -- the button whose presses the gesture takes while it is live, and the only button whose release commits it, or `null` for a gesture that takes no press and is committed by any release.
+A declaration is a plain object holding exactly `threshold` and `gestures`, and optionally `measure`:
+- `threshold`, a finite number at least 0: the distance a press may travel and still be a click, in the units of the points the session measures;
+- `gestures`, an array of plain objects of exactly `name`, a non-empty string, unique among them; `engaged`, a boolean; and `button`, a safe integer or `null` -- the button whose presses the gesture takes while it is live, and the only button whose release commits it, or `null` for a gesture that takes no press and is committed by any release;
+- `measure`, `'at'` or `'screen'`: the point of each pointer fact the session measures, its `at` -- as when `measure` is absent -- or its `screen` (IB16).
 
 | Step | When | Problem, at pointer |
 |---|---|---|
 | 1 | the declaration is not a plain object | `not-an-object` at `""`, and nothing else |
-| 2 | an own property other than `threshold` and `gestures`; one of them absent | `unknown-property` at `/<name>`, one each; `missing-property` at `/<name>` |
+| 2 | an own property other than `threshold`, `gestures` and `measure`; `threshold` or `gestures` absent | `unknown-property` at `/<name>`, one each; `missing-property` at `/<name>` |
 | 3 | `threshold` not a finite number at least 0 | `invalid-value` at `/threshold` |
 | 4 | `gestures` not an array of its form; a gesture not a plain object; a property other than `name`, `engaged` and `button`, or one absent; `name` not a non-empty string; `engaged` not a boolean; `button` neither a safe integer nor `null` | `invalid-value` at `/gestures`; `not-an-object` at `/gestures/<k>`; `unknown-property` or `missing-property` at `/gestures/<k>/<name>`; `invalid-value` at `/gestures/<k>/<name>` |
 | 5 | among valid names, one equal to an earlier one | `duplicate-name` at the later one's `/name` |
+| 6 | `measure` present and an accessor, or neither `'at'` nor `'screen'`, `undefined` among them | `invalid-value` at `/measure` |
 
-`session.declaration` is a frozen copy `{ threshold, gestures }`, each gesture `{ name, engaged, button }`, `-0` written `0`.\
+`session.declaration` is a frozen copy `{ threshold, gestures }` when the declaration holds no `measure`, exactly `0.2.0`'s, and `{ threshold, gestures, measure }` when it holds one, each gesture `{ name, engaged, button }`, `-0` written `0`.\
+So a declaration without `measure` is opened, refused and read as `0.2.0` opens, refuses and reads it, in every rule.\
 A session belongs to the application that opens it: one for each input surface whose presses, gestures and keys form one stream, kept as long as the application keeps it, and dropped by dropping it; two sessions share nothing.\
-Tested by: `test/contract/declared-gesture-session.test.js` (I1).
+Tested by: `test/contract/declared-gesture-session.test.js` (I1) and `test/contract/screen-measure.test.js` (I20).
 
 **IB10 -- The press.**\
-A session holds at most one press, `null` or `{ at, beyond, unmatched, button, pointer }`:
-- `pointerDown(fact)` replaces the press, whatever press there was: `at` a copy of the fact's, `beyond` false, `unmatched` true unless the live gesture takes the press (IB11), when it is false, `button` the fact's, written `button + 0`, and `pointer` its `pointerId`, written likewise, or `null` when it names none;
-- `pointerMove(fact)` of the press's own pointer makes the press beyond when it is not yet beyond and the distance from its `at` to the fact's `at` is greater than the threshold, and then its outcome's `crossed` is `true`; otherwise the press is unchanged and `crossed` is `false`; a move with no press changes no press, and a move of another pointer changes nothing (IB11);
-- `pointerUp(fact)` of the press's own pointer, or with no press, answers `trigger`, `'drop'` when there is a press and it is beyond and `'click'` otherwise, and makes the press `null`; it reads the fact's `button` and `pointerId` (IB11), never its `at`, so where a release lands never counts, only the moves before it; a release of another pointer changes nothing, its `trigger` `null`;
+A fact's point, here, is the point of it the session measures: its `at`, or in a session measured on screen its `screen` (IB16).\
+A session holds at most one press, `null` or `{ at, beyond, unmatched, button, pointer }`, its `at` the press's origin, a point the session measures:
+- `pointerDown(fact)` replaces the press, whatever press there was: `at` a copy of the fact's point, `beyond` false, `unmatched` true unless the live gesture takes the press (IB11), when it is false, `button` the fact's, written `button + 0`, and `pointer` its `pointerId`, written likewise, or `null` when it names none;
+- `pointerMove(fact)` of the press's own pointer makes the press beyond when it is not yet beyond and the distance from its `at` to the fact's point is greater than the threshold, and then its outcome's `crossed` is `true`; otherwise the press is unchanged and `crossed` is `false`; a move with no press changes no press, and a move of another pointer changes nothing (IB11);
+- `pointerUp(fact)` of the press's own pointer, or with no press, answers `trigger`, `'drop'` when there is a press and it is beyond and `'click'` otherwise, and makes the press `null`; it reads the fact's `button` and `pointerId` (IB11), never its `at` or its `screen`, so where a release lands never counts, only the moves before it; a release of another pointer changes nothing, its `trigger` `null`;
 - `pointerLost()` makes the press `null`, with no trigger -- the platform has taken the pointer;
 - `pressMatched` answering `start` or no phase makes `unmatched` false (IB11);
-- `startGesture` and `becomeGesture` given `from`, when there is a press, set its `at` to a copy of `from` and `beyond` to false, keeping `unmatched`, `button` and `pointer`; with no press, `from` is read and checked and changes nothing.
+- `startGesture` and `becomeGesture` given `from`, a point the session measures, when there is a press, set its `at` to a copy of `from` and `beyond` to false, keeping `unmatched`, `button` and `pointer`; with no press, `from` is read and checked and changes nothing.
 
 So a restart never changes the button that began the press, which decides a chord's release (IB11), nor the pointer that holds it.
 
-The distance is decided exactly: with `(x0, y0)` the press's `at`, `(x1, y1)` the fact's and `t` the threshold, the press is beyond when `(x1 - x0)^2 + (y1 - y0)^2 > t^2` holds of the exact real numbers the binary64 values denote.\
+The distance is decided exactly: with `(x0, y0)` the press's `at`, `(x1, y1)` the fact's point and `t` the threshold, the press is beyond when `(x1 - x0)^2 + (y1 - y0)^2 > t^2` holds of the exact real numbers the binary64 values denote.\
 So a travel of exactly the threshold is a click, and a press never stops being beyond except by a new press, a restart, `pointerUp` or `pointerLost`.
 
 It is computed exactly, and cheaply, in two steps:
@@ -272,7 +279,7 @@ It is computed exactly, and cheaply, in two steps:
 The filter is sound: a subtraction whose result is subnormal is exact, and otherwise errs by at most one rounding, `u = 2^-53` relative; so, with no underflow, the computed `s` lies within a factor `1 +- 5u` of the exact sum and the computed `q` within `1 +- u` of `t^2`, and a computed `s` above `q * (1 + 2^-49)` -- 2^-49 being `16u` -- implies an exact sum above `t^2`, and below `q * (1 - 2^-49)` one below it, the one further rounding that forms each bound being absorbed by the margin between `5u` and `16u`.\
 The fallback is bounded: the exponents of the last places of finite binary64 values run from -1074 to 971, so each shifted operand has at most 2,098 bits, each difference 2,099 and each square 4,198, which `BigInt` multiplies in microseconds -- 16 to 26 microseconds were measured at the worst case, two coordinates near `Number.MAX_VALUE` of opposite signs against one at `Number.MIN_VALUE` -- and the filter decides every travel of ordinary magnitude that does not lie within a relative 2^-49 of the threshold, so the fallback runs only at the edge and at extremes.\
 This repository's tests hold the fallback to an oracle that shares no code with it, over random travels and over cases built so the filter cannot decide them, and each of five mutations of the fallback fails the built cases (I9).\
-Tested by: `test/contract/press-travel.test.js` (I9).
+Tested by: `test/contract/press-travel.test.js` (I9) and `test/contract/screen-measure.test.js` (I21).
 
 **IB11 -- The live gesture, and what makes each phase due.**\
 A session holds at most one live gesture, `null` or `{ name, row, engaged }`, `row` the id of the row that opened it or `null`.\
@@ -369,7 +376,7 @@ Each operation answers a fresh frozen outcome, of the form the table gives: `sta
 
 For arguments whose reading runs no application code -- no `Proxy` among them, and every point's `x` and `y` data properties or getters that answer the same at every read, as a `DOMPoint`'s do -- the same declaration and the same sequence of operations and arguments give the same states and outcomes.\
 Where reading does run application code, an operation's outcome is decided by what its reads answered and by the calls into the session that code made, in IB2's order; binding cannot make a getter or a trap answer the same twice, and promises nothing of one that does not.\
-A session calls no application code but a point's getters and a `Proxy`'s traps while it reads its arguments, all before it reads its own state, and `resolvePress`'s `match` and `cancelled`, each after the transition before it, the state read again after each returns (IB15); it keeps nothing of a fact but a copy of its `at`, its `button` and its `pointerId`, and of a key fact its `code` while the key is held; so any operation may be called from code the application runs in answer to another operation's outcome -- a commit body starting a chained gesture -- and sees the state the last operation left.\
+A session calls no application code but a point's getters and a `Proxy`'s traps while it reads its arguments, all before it reads its own state, and `resolvePress`'s `match` and `cancelled`, each after the transition before it, the state read again after each returns (IB15); it keeps nothing of a fact but a copy of its point -- its `at`, or its `screen` (IB16) -- its `button` and its `pointerId`, and of a key fact its `code` while the key is held; so any operation may be called from code the application runs in answer to another operation's outcome -- a commit body starting a chained gesture -- and sees the state the last operation left.\
 Tested by: `test/contract/live-gesture.test.js` (I12), `test/contract/held-keys.test.js` and `test/contract/press-resolution.test.js`.
 
 **IB13 -- Exports.**\
@@ -417,6 +424,18 @@ The two traps this order holds -- `pressMatched` throws on a taken press, and a 
 A typical `match` asks the table, `() => table.matchInput(fact, context, guards).match`, and the application acts on the outcome's `phase` as it would on `pressMatched`'s.\
 Tested by: `test/contract/press-resolution.test.js` (I17).
 
+**IB16 -- A session measured on screen.**\
+A session declared with `measure: 'screen'` (IB9) measures every point on the screen, and nothing in it mixes a fact's `at` with its `screen`:
+- every operation that reads a fact's point -- `pointerDown`, `pointerMove` and `resolvePress` -- reads the fact's own data property `screen` in the place of `at`, as IB1 and IB2 read `at`, and never reads `at`, so a fact's `at` may be anything, an accessor among them, or absent, and a fact without a `screen` of IB1's form is malformed;
+- a press's origin is that screen point, and `state.press.at` answers it;
+- a restart's `from`, given to `startGesture` or `becomeGesture` (IB10), is read as a screen point, so an application converts a point it holds in other units to the screen before handing it;
+- the threshold is in screen pixels, and a move's travel is measured, as IB10 decides it exactly, from the press's screen origin to the fact's `screen`.
+
+`pointerUp` reads no point under either measure (IB10), so a release is read alike under both.\
+A session declared with `measure: 'at'`, or with none, measures each fact's `at` and never reads its `screen`; `'at'` and its absence differ in `session.declaration` alone (IB9).\
+So, with `screen` a fact's point on the screen and `at` its point in the application's own units, a press is a click or a drop by how far it travelled on the screen, whatever the application's scale and origin: at a scale of 0.5 screen pixels to a unit, a travel of 3 screen pixels is a click within a threshold of 4, where measured on `at`, 6 units, it would be a drop.\
+Tested by: `test/contract/screen-measure.test.js` (I20, I21).
+
 **Invariants.**\
 There is no conformance kit: nothing in input-binding is a port another party implements.\
 *input-binding* marks what the component's own tests hold; *gate* what its gate holds.
@@ -430,7 +449,7 @@ There is no conformance kit: nothing in input-binding is a port another party im
 | I5 | Order decides nothing: for every permutation of tenants and of rows in a generated table, every `matchInput` answer's `match.id` and `claimed` are unchanged. | input-binding |
 | I6 | Spies count every predicate call, its order and its receiver: each admitted row's `on` once, each reached row's `when` once, every `on` before any `when`, each in table order, each with no receiver -- a strict predicate sees `this` undefined, a sloppy one the global object; a throwing predicate's exception propagates, and the table answers the next call as before. | input-binding |
 | I7 | `findOverlaps` lists exactly the combinations in which two or more rows hit, in IB8's order, with `ids` in table order, and refuses a malformed guard state before calling any predicate, even with no facts. | input-binding |
-| I8 | Binding reads no property of a fact but `at`, `button`, `pointerId` and `code`, each only in the operations IB1 names, in IB2's order, and writes none: a `Proxy` fact records every read; an accessor `at`, `button`, `pointerId` or `code` is refused with no getter called; a function given as a fact or a point is refused; frozen facts, contexts, rows and guard states are accepted. | input-binding |
+| I8 | Binding reads no property of a fact but `at`, `button`, `pointerId` and `code` -- in a session measured on screen `screen` in the place of `at`, which it never reads (I21) -- each only in the operations IB1 names, in IB2's order, and writes none: a `Proxy` fact records every read; an accessor `at`, `screen`, `button`, `pointerId` or `code` is refused, where the session reads it, with no getter called; a function given as a fact or a point is refused; frozen facts, contexts, rows and guard states are accepted. | input-binding |
 | I9 | The press's `beyond` and `trigger` agree with an exact oracle that shares no code with the fallback over generated streams; over travels targeted within 10^-15 of the threshold, on both signs, near the origin and far from it; over values near `Number.MAX_VALUE`, where binary64 squares overflow, and subnormal or zero, where they underflow; and over cases built so the filter cannot decide them, each asserted to reach the fallback -- exact equality and one binary64 step either side, across exponents, from negative origins -- which mutations of the fallback's comparison, sign and subnormal decoding each fail; a release's position never changes a trigger. | input-binding |
 | I10 | Over generated sequences of operations, every outcome names the phase IB11's tables give for the state before it; at most one gesture is live; each life ends at most once; started equals ended plus live; every refused operation throws and changes nothing. | input-binding |
 | I11 | A point's getter, and a `Proxy`'s trap on any argument, that calls the session takes effect before the operation's transition, which sees the state it left -- a gesture argument whose `getOwnPropertyDescriptor` trap cancels the live gesture lets `startGesture` start; such code that calls the session and then throws leaves its own call's effect and nothing of the throwing operation's; and for each operation a malformed argument at each place in IB2's order stops the reading there, no later getter or trap called. | input-binding |
@@ -442,14 +461,21 @@ There is no conformance kit: nothing in input-binding is a port another party im
 | I17 | `resolvePress` against the five calls written out by hand, over generated sequences in which neither callback calls the session or changes the match it answered: the same states and outcomes; each row of IB15's table driven by recording callbacks, a match changed after `match` returns among them, answered as the table says; `match` never called on a taken press; `cancelled` seeing no live gesture. | input-binding |
 | I18 | Over generated sequences of two pointers: a move or release of the pointer that is not the press's changes nothing and answers `otherPointer` `true`; facts with no `pointerId` answer as facts whose pointers are equal. | input-binding |
 | I19 | Beside `0.1.0`: the I13 corpus and I10's generator, their facts carrying no `pointerId`, give `0.1.0`'s outcomes but for the chord sequences and the changes the closing paragraph below lists, the press records gaining `button` and `pointer` and the state `keys`. | input-binding |
+| I20 | A declaration's `measure` is read after `threshold` and `gestures`, its descriptor after theirs among the declaration's; `'at'` and `'screen'` are opened, and every other value -- another string, `undefined`, `null`, a `String` object of this realm or another -- and an accessor, its getter never run, are `invalid-value` at `/measure`, beside every other problem; `session.declaration` is `{ threshold, gestures }` without `measure`, frozen to its depth, its keys `0.2.0`'s, and `{ threshold, gestures, measure }` with it. | input-binding |
+| I21 | Under `'screen'`, a `Proxy` fact records a read of `screen` in the place of `at`, in IB2's order, and no read of `at`, in `pointerDown`, `pointerMove` and `resolvePress`, and `pointerUp` no read of either; under `'at'` or none, no read of `screen`; a fact without a `screen` point as an own data property is refused, an accessor's getter never run, while an accessor `at` is never called; a screen point of any prototype -- a class whose `x` and `y` are getters, another realm's object -- is read; with `at` and `screen` differing -- scales of 0.5, 2 and 4 and panned origins -- a click, a drag returning to its start and a restart from a point are decided on the screen, `state.press.at` the screen origin and a restart's `from` a screen point; a travel of exactly the threshold on the screen is a click, one binary64 step more a drop, and random screen travels agree with I9's exact oracle whatever the facts' `at`; identity is decided by the screen point alone; and over I10's generator with two pointers, `'at'` answers as no `measure` does, and `'screen'`, handed the same points as `screen` and others as `at`, answers the same states, outcomes and identities. | input-binding |
+| I22 | Beside `0.2.0`: for a declaration without `measure`, a table of declarations -- of another kind, accessors, revoked and trapping `Proxy` values among them -- IB11's decided cases, the I13 corpus and I10's generator with two pointers and the keys give `0.2.0`'s problems, declarations, states, outcomes, refusals and identities, with nothing set aside, and every argument is read as `0.2.0` read it; a declaration's `measure` descriptor is the one read added, and a declaration naming `measure`, which `0.2.0` refused with `unknown-property` at `/measure`, the one difference. | input-binding |
 
-I13 is held by `test/corpus/i13-corpus.test.js`, over the corpus `test/corpus/README.md` describes; I14 by `tools/check-vocabulary.mjs`, `tools/check-runtime.mjs` and `tools/check-clock-and-chance.mjs`, whose own tests are `test/tools/gate-checks.test.js`; I19 by `test/compatibility/beside-0.1.0.test.js`, which runs this build beside the released `0.1.0`, kept in `test/fixtures/`.
+I13 is held by `test/corpus/i13-corpus.test.js`, over the corpus `test/corpus/README.md` describes; I14 by `tools/check-vocabulary.mjs`, `tools/check-runtime.mjs` and `tools/check-clock-and-chance.mjs`, whose own tests are `test/tools/gate-checks.test.js`; I19 by `test/compatibility/beside-0.1.0.test.js`, which runs this build beside the released `0.1.0`, kept in `test/fixtures/`, and I22 by `test/compatibility/beside-0.2.0.test.js`, beside the released `0.2.0`, its release file a development dependency, `input-binding-0.2.0`, pinned by its address and the lockfile's integrity.
 
 **What changes beside `0.1.0`.**
 - A pointer fact whose `pointerId` is an accessor, or neither `null` nor a safe integer, is refused, where `0.1.0` passed it unread; and a pointer operation reads the fact's `pointerId` after everything it read before.
 - The press gains `button` and `pointer`, the state `keys`, the session four functions after `cancelGesture`, and the move's and release's outcomes `otherPointer`; a `pointerDown` that differs from the press in its button or its pointer alone leaves a new press and state, where `0.1.0` left the very same.
 - A chord's release commits its gesture: the second and fourth of IB11's decided cases.
 - A move or release of another pointer while a press is held changes nothing: IB11's last decided case.
+
+**What changes beside `0.2.0`.**
+- A declaration naming `measure`, which `0.2.0` refused with `unknown-property` at `/measure`, is opened when it holds `'at'` or `'screen'`, and otherwise refused with `invalid-value` at `/measure` (IB9); a session declared with `'screen'` measures every point on the screen (IB16).
+- Nothing else: a declaration without `measure` is opened, refused and read as `0.2.0` does, and its session answers as `0.2.0`'s (I22).
 
 ---
 
@@ -458,7 +484,7 @@ I13 is held by `test/corpus/i13-corpus.test.js`, over the corpus `test/corpus/RE
 This repository, `apnex/input-binding`, and its package `@apnex/input-binding`, released only by its own CI as a tarball attached to a GitHub release, drafted, verified and then published (`.github/workflows/release.yml`).\
 The package exports `composeBindingTable` and `openGestureSession` from its one path, as `export-map.json` records.\
 The code is TypeScript in `src/`, built to `dist/`, which only a release holds.\
-The tests are in `test/`: one file per capability in `test/contract/`, with `argument-reading.test.js`, `returned-values-and-errors.test.js`, `public-types.test.js`, `public-surface.test.js` and `contract-coverage.test.js` beside them; the I13 corpus and its test in `test/corpus/`; the test beside `0.1.0` in `test/compatibility/`, over the released `0.1.0` kept in `test/fixtures/`; the typed consumer in `test/types/`; and the gate checks' own tests in `test/tools/`.\
+The tests are in `test/`: one file per capability in `test/contract/`, with `argument-reading.test.js`, `screen-measure.test.js`, `returned-values-and-errors.test.js`, `public-types.test.js`, `public-surface.test.js` and `contract-coverage.test.js` beside them; the I13 corpus and its test in `test/corpus/`; the tests beside `0.1.0` and `0.2.0` in `test/compatibility/`, over the released `0.1.0` kept in `test/fixtures/` and the released `0.2.0` installed as a development dependency; the typed consumer in `test/types/`; and the gate checks' own tests in `test/tools/`.\
 The gate, `npm run gate`, builds, runs the tests, the vocabulary, runtime, clock and chance, and export-map checks in `tools/`, and mission-kit's style checks; its repository, gate and release follow `snap-grid`'s, the first component's.\
 The design of record and the rulings that shape this component are kept in draw's records, `apnex/drawv2`.
 
@@ -499,4 +525,4 @@ Internal and sovereign: a measured gap is recorded where both sides can see it, 
 **Consumed-by:** draw, and `input-tester`.
 
 The tester needs of binding: its own tables, traced for every row's standing for each input (`traceInput`, IB6) and matched (IB7); every operation's outcome, to show a press becoming a drag and each phase as it falls due (IB12); IB14, to light the keys held and to match its roll-over row; IB15, for every mouse press; and IB11's rule, for every gesture.\
-It draws its keys and its pointer from `input-capture`'s facts, which binding does not read beyond `at`, `button`, `pointerId` and `code`.
+It draws its keys and its pointer from `input-capture`'s facts, which binding does not read beyond `at` or `screen`, `button`, `pointerId` and `code`.

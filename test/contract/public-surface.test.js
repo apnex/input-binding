@@ -69,15 +69,17 @@ test("every contract row is served by an export or deferred with a ruling", () =
 	for (const [row, ruling] of Object.entries(map.deferred)) assert.match(ruling, /^D\d+$/, `${row} is deferred without a ruling`);
 });
 
-test("the package declares no dependency, and pins TypeScript, clean-runner, its tests\' runner, and headless-chromium, the Chrome its tests drive, by their release files", () => {
+test("the package declares no dependency, and pins TypeScript, clean-runner, its tests\' runner, headless-chromium, the Chrome its tests drive, and the released 0.2.0 its tests run beside, by their release files", () => {
 	assert.equal(pkg.dependencies, undefined);
 	assert.equal(pkg.devDependencies.typescript, "5.9.3");
 	assert.equal(pkg.devDependencies["@apnex/clean-runner"], "https://github.com/apnex/clean-runner/releases/download/v0.2.0/apnex-clean-runner-0.2.0.tgz");
 	assert.equal(pkg.devDependencies["@apnex/headless-chromium"], "https://github.com/apnex/headless-chromium/releases/download/v0.1.0/apnex-headless-chromium-0.1.0.tgz");
+	assert.equal(pkg.devDependencies["input-binding-0.2.0"], "https://github.com/apnex/input-binding/releases/download/v0.2.0/apnex-input-binding-0.2.0.tgz");
+	assert.deepEqual(Object.keys(pkg.devDependencies), ["@apnex/clean-runner", "@apnex/headless-chromium", "input-binding-0.2.0", "typescript"]);
 	assert.equal(pkg.type, "module");
 	assert.equal(pkg.engines.node, ">=22");
 	assert.equal(pkg.name, "@apnex/input-binding");
-	assert.equal(pkg.version, "0.2.0");
+	assert.equal(pkg.version, "0.3.0");
 	assert.equal(pkg.repository.url, "git+https://github.com/apnex/input-binding.git");
 	assert.deepEqual(pkg.files.sort(), ["CONTRACT.md", "LICENSE", "README.md", "VISION.md", "dist"]);
 });
