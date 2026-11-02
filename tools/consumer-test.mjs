@@ -10,7 +10,9 @@
 // below composes a table, matches a press against it, and drives a session through the press, resolved in
 // one call, a move of exactly the threshold, another pointer's move, which changes nothing, one a binary64
 // step beyond it, and a chord's release naming another button, which commits; then a key held, a key with no
-// code and a focus lost; the page writes what it saw into itself, which Chrome's --dump-dom returns.
+// code and a focus lost; and a session measured on screen, whose press is a click or a drop by its facts'
+// screen points, their at moving otherwise; the page writes what it saw into itself, which Chrome's
+// --dump-dom returns.
 //
 // The server and the one-shot Chrome are headless-chromium's, the scratch folder clean-runner's (development
 // dependencies, pinned to their release files, which nothing the package ships holds): serveStatic, dumpDom -- $CHROME, or
@@ -43,7 +45,10 @@ const step = (message) => console.log(`  ${message}`);
 /**
  * What a consumer does with the package, run in Node and in Chrome alike: compose a table whose one row
  * opens a gesture, open a session, press, match the press, move exactly the threshold (a click) and then
- * one binary64 step beyond it (decided by the exact fallback), and release. Answers a summary, or throws.
+ * one binary64 step beyond it (decided by the exact fallback), and release; then open a session measured on
+ * screen (IB16) and press it with facts whose at and screen differ, as a page zoomed and panned makes them:
+ * 40 units of at that are 4 screen pixels stay a click, and a travel of 4.24 screen pixels back to the
+ * press's at is a drop. Answers a summary, or throws.
  */
 function exercise(composeBindingTable, openGestureSession) {
 	const composed = composeBindingTable({ claim: { flag: "claims", default: true }, opens: { field: "opens" }, tenants: [{ owner: "t", rows: [{ id: "press", on: (fact) => fact.button === 0, opens: "drag" }] }] });
@@ -61,8 +66,17 @@ function exercise(composeBindingTable, openGestureSession) {
 	const key = session.keyDown({ code: "KeyA" });
 	const unnamed = session.keyDown({ code: "" });
 	const lost = session.keysLost();
-	const summary = [answer.claimed, started.phase, edge.phase + ":" + edge.crossed, "other:" + other.otherPointer, beyond.phase + ":" + beyond.crossed, up.phase + ":" + up.trigger, key.tracked + ":" + key.held, unnamed.tracked, lost.released.join("+")].join(",");
-	if (summary !== "true,start,update:false,other:true,update:true,commit:drop,true:false,false,KeyA") throw new Error("the package answered wrongly: " + summary);
+	const screened = openGestureSession({ threshold: 4, gestures: [], measure: "screen" });
+	if (!screened.ok) throw new Error("openGestureSession refused a measure: " + JSON.stringify(screened.problems));
+	const onScreen = screened.session;
+	onScreen.pointerDown({ at: { x: 0, y: 0 }, screen: { x: 100, y: 100 }, button: 0 });
+	const origin = onScreen.state.press.at.x + "+" + onScreen.state.press.at.y;
+	const near = onScreen.pointerMove({ at: { x: 40, y: 0 }, screen: { x: 104, y: 100 } });
+	const far = onScreen.pointerMove({ at: { x: 0, y: 0 }, screen: { x: 103, y: 103 } });
+	const dropped = onScreen.pointerUp({ button: 0 });
+	const measured = ["screen", onScreen.declaration.measure, origin, near.crossed, far.crossed, dropped.trigger].join(":");
+	const summary = [answer.claimed, started.phase, edge.phase + ":" + edge.crossed, "other:" + other.otherPointer, beyond.phase + ":" + beyond.crossed, up.phase + ":" + up.trigger, key.tracked + ":" + key.held, unnamed.tracked, lost.released.join("+"), measured].join(",");
+	if (summary !== "true,start,update:false,other:true,update:true,commit:drop,true:false,false,KeyA,screen:screen:100+100:false:true:drop") throw new Error("the package answered wrongly: " + summary);
 	return summary;
 }
 
