@@ -1,8 +1,8 @@
 ---
-id: unminted
+id: C12
 category: component
 title: input-binding - decide what each input means in its context
-status: draft
+status: active
 hydrate-when: More than one surface of your application must agree on what an input means, or you are about to decide click or drag, or which release ends a gesture, in a second place
 sovereignty: internal
 supersedes: []
@@ -12,8 +12,8 @@ related: [C0, A3]
 # input-binding
 
 The contract of record for input-binding at `0.3.0`: what a consumer can depend on, and every rule (`docs/DECISIONS.md`, `D2`, `D3` and `D6`).\
-It also carries the fields of a mission-kit registry entry, and that entry is generated from this file when the component is filed, never written as a second copy.\
-The registry id is unminted on purpose; one is minted only when the entry is admitted to the registry.
+It also carries the fields of a mission-kit registry entry, and that entry is generated from this file, never written as a second copy.\
+Admitted to mission-kit's component registry as `C12` on 2026-11-06 (`docs/DECISIONS.md` `D7`); its frontmatter is the entry's.
 
 ---
 
